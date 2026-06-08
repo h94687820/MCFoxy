@@ -28,4 +28,7 @@ export interface UploadedFile {
   virusTotalLink?: string | null;
   /** @nullable */
   detectionRatio?: string | null;
+  /** @nullable */
+  description?: string | null;
+  images?: string[] | null;
 }

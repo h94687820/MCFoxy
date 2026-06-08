@@ -4,17 +4,26 @@ import { useQueryClient } from "@tanstack/react-query";
 import { getListFilesQueryKey, getGetFileStatsQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import {
-  Upload, Package, Map, CheckCircle, AlertCircle, X, FileUp, Loader2, Cpu, Pickaxe, LogIn, Lock,
+  Upload,
+  Package,
+  Map,
+  CheckCircle,
+  AlertCircle,
+  X,
+  FileUp,
+  Loader2,
+  Cpu,
+  Pickaxe,
+  ImagePlus,
+  Image,
 } from "lucide-react";
 import { formatBytes } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { useAdminAuth } from "@/hooks/use-auth-context";
 
 type Edition = "java" | "bedrock";
 type FileType = "mod" | "map";
 type UploadState = "idle" | "uploading" | "success" | "error";
 
-// Per-edition accepted extensions — prevents mobile from offering camera/gallery
 const EDITION_ACCEPT: Record<Edition, string> = {
   java: ".jar,.zip",
   bedrock: ".mcpack,.mcworld,.mcaddon,.mctemplate",
@@ -26,17 +35,18 @@ const EDITION_HINT: Record<Edition, string> = {
 };
 
 export default function UploadPage() {
-  const { isAdmin, isLoading: authLoading, login } = useAdminAuth();
   const queryClient = useQueryClient();
   const [edition, setEdition] = useState<Edition>("java");
   const [fileType, setFileType] = useState<FileType>("mod");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [description, setDescription] = useState("");
+  const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [uploadState, setUploadState] = useState<UploadState>("idle");
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
-  // When edition changes, clear selected file (it might be invalid for new edition)
   function handleEditionChange(e: Edition) {
     setEdition(e);
     setSelectedFile(null);
@@ -64,6 +74,16 @@ export default function UploadPage() {
     if (file) handleFile(file);
   }
 
+  function handleImagesChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    setSelectedImages((prev) => [...prev, ...files].slice(0, 10));
+    if (imageInputRef.current) imageInputRef.current.value = "";
+  }
+
+  function removeImage(index: number) {
+    setSelectedImages((prev) => prev.filter((_, i) => i !== index));
+  }
+
   async function handleUpload() {
     if (!selectedFile) return;
     setUploadState("uploading");
@@ -74,6 +94,10 @@ export default function UploadPage() {
       formData.append("file", selectedFile);
       formData.append("type", fileType);
       formData.append("edition", edition);
+      if (description.trim()) {
+        formData.append("description", description.trim());
+      }
+      selectedImages.forEach((img) => formData.append("images", img));
 
       const base = import.meta.env.BASE_URL.replace(/\/$/, "");
       const response = await fetch(`${base}/api/files/upload`, { method: "POST", body: formData });
@@ -89,6 +113,8 @@ export default function UploadPage() {
 
       setTimeout(() => {
         setSelectedFile(null);
+        setDescription("");
+        setSelectedImages([]);
         setUploadState("idle");
         if (fileInputRef.current) fileInputRef.current.value = "";
       }, 2500);
@@ -105,36 +131,6 @@ export default function UploadPage() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
-  // Show auth gate for non-admins
-  if (!authLoading && !isAdmin) {
-    return (
-      <div className="p-6 md:p-8 max-w-2xl">
-        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-          <h1 className="text-2xl font-bold tracking-tight">Upload File</h1>
-        </motion.div>
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="border border-border p-8 flex flex-col items-center gap-4 text-center"
-        >
-          <div className="w-12 h-12 bg-primary/10 flex items-center justify-center">
-            <Lock className="w-5 h-5 text-primary" />
-          </div>
-          <div>
-            <p className="font-semibold text-sm">Admin access required</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Sign in to upload mods and maps
-            </p>
-          </div>
-          <Button onClick={login} data-testid="button-login-upload">
-            <LogIn className="w-4 h-4 mr-2" />
-            Sign in with Replit
-          </Button>
-        </motion.div>
-      </div>
-    );
-  }
-
   return (
     <div className="p-6 md:p-8 max-w-2xl">
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
@@ -149,7 +145,10 @@ export default function UploadPage() {
         <div>
           <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">1 — Edition</p>
           <div className="grid grid-cols-2 gap-3">
-            {([ { id: "java" as Edition, label: "Java Edition", sub: ".jar, .zip", Icon: Cpu }, { id: "bedrock" as Edition, label: "Bedrock Edition", sub: ".mcpack, .mcworld", Icon: Pickaxe } ] as const).map(({ id, label, sub, Icon }) => (
+            {([
+              { id: "java" as Edition, label: "Java Edition", sub: ".jar, .zip", Icon: Cpu },
+              { id: "bedrock" as Edition, label: "Bedrock Edition", sub: ".mcpack, .mcworld", Icon: Pickaxe },
+            ] as const).map(({ id, label, sub, Icon }) => (
               <button
                 key={id}
                 data-testid={`button-edition-${id}`}
@@ -170,7 +169,10 @@ export default function UploadPage() {
         <div>
           <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">2 — File Type</p>
           <div className="grid grid-cols-2 gap-3">
-            {([ { id: "mod" as FileType, label: "Mod", sub: "Game modification", Icon: Package }, { id: "map" as FileType, label: "Map", sub: "World or adventure map", Icon: Map } ] as const).map(({ id, label, sub, Icon }) => (
+            {([
+              { id: "mod" as FileType, label: "Mod", sub: "Game modification", Icon: Package },
+              { id: "map" as FileType, label: "Map", sub: "World or adventure map", Icon: Map },
+            ] as const).map(({ id, label, sub, Icon }) => (
               <button
                 key={id}
                 data-testid={`button-type-${id}`}
@@ -202,7 +204,6 @@ export default function UploadPage() {
               isDragging ? "border-primary bg-primary/5" : selectedFile ? "border-border bg-card" : "border-border hover:border-primary/50 bg-card"
             )}
           >
-            {/* accept changes with edition — no capture attr to prevent camera on mobile */}
             <input
               ref={fileInputRef}
               type="file"
@@ -244,11 +245,69 @@ export default function UploadPage() {
           </p>
         </div>
 
+        {/* Step 4: Description */}
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">4 — Description <span className="normal-case font-normal">(optional)</span></p>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Describe what this mod or map does..."
+            rows={3}
+            className="w-full bg-card border border-border text-sm text-foreground placeholder:text-muted-foreground p-3 resize-none focus:outline-none focus:border-primary/60 transition-colors"
+          />
+        </div>
+
+        {/* Step 5: Images */}
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">5 — Screenshots / Images <span className="normal-case font-normal">(optional, up to 10)</span></p>
+
+          {selectedImages.length > 0 && (
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              {selectedImages.map((img, i) => (
+                <div key={i} className="relative group aspect-video bg-card border border-border overflow-hidden">
+                  <img
+                    src={URL.createObjectURL(img)}
+                    alt={img.name}
+                    className="w-full h-full object-cover"
+                  />
+                  <button
+                    onClick={() => removeImage(i)}
+                    className="absolute top-1 right-1 w-5 h-5 bg-black/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="w-3 h-3 text-white" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {selectedImages.length < 10 && (
+            <button
+              onClick={() => imageInputRef.current?.click()}
+              className="flex items-center gap-2 px-4 py-2.5 border border-dashed border-border hover:border-primary/50 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <ImagePlus className="w-4 h-4" />
+              Add image{selectedImages.length > 0 ? "s" : ""}
+              <span className="text-xs font-mono">({selectedImages.length}/10)</span>
+            </button>
+          )}
+
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept=".jpg,.jpeg,.png,.gif,.webp"
+            multiple
+            className="hidden"
+            onChange={handleImagesChange}
+          />
+          <p className="text-xs text-muted-foreground mt-2 font-mono">JPG · PNG · GIF · WebP · max 10 MB each</p>
+        </div>
+
         <AnimatePresence>
           {uploadState === "success" && (
             <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="flex items-center gap-3 p-3 bg-green-500/10 border border-green-500/30 text-green-400 text-sm">
               <CheckCircle className="w-4 h-4 flex-shrink-0" />
-              <span>Uploaded successfully. Scan pending.</span>
+              <span>Uploaded successfully. File is being scanned in the background.</span>
             </motion.div>
           )}
           {uploadState === "error" && (
@@ -267,7 +326,7 @@ export default function UploadPage() {
         >
           {uploadState === "uploading" ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Uploading...</>
             : uploadState === "success" ? <><CheckCircle className="w-4 h-4 mr-2" />Uploaded</>
-            : <><Upload className="w-4 h-4 mr-2" />Upload {fileType === "mod" ? "Mod" : "Map"}</>}
+            : <><Upload className="w-4 h-4 mr-2" />{selectedImages.length > 0 ? "Upload with " + selectedImages.length + " image" + (selectedImages.length > 1 ? "s" : "") : `Upload ${fileType === "mod" ? "Mod" : "Map"}`}</>}
         </Button>
       </motion.div>
     </div>

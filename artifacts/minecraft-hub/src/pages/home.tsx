@@ -1,11 +1,11 @@
 import { motion } from "framer-motion";
+import { useNavigate } from "@/hooks/use-navigate";
 import {
   useListFiles,
   useGetFileStats,
   getListFilesQueryKey,
   getGetFileStatsQueryKey,
   useDeleteFile,
-  useScanFile,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,18 +16,17 @@ import {
   ShieldCheck,
   ShieldAlert,
   Trash2,
-  ScanSearch,
-  ExternalLink,
   HardDrive,
   Clock,
   FileX,
   Cpu,
   Pickaxe,
   Download,
+  ChevronRight,
+  Image,
 } from "lucide-react";
 import { formatBytes } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { useAdminAuth } from "@/hooks/use-auth-context";
 import type { UploadedFile } from "@workspace/api-client-react";
 
 const container = {
@@ -67,12 +66,12 @@ function StatCard({ icon: Icon, label, value, color }: { icon: React.ElementType
 }
 
 function FileRow({ file }: { file: UploadedFile }) {
-  const { isAdmin } = useAdminAuth();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const deleteMutation = useDeleteFile();
-  const scanMutation = useScanFile();
 
-  function handleDelete() {
+  function handleDelete(e: React.MouseEvent) {
+    e.stopPropagation();
     deleteMutation.mutate({ id: file.id }, {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListFilesQueryKey() });
@@ -81,89 +80,68 @@ function FileRow({ file }: { file: UploadedFile }) {
     });
   }
 
-  function handleScan() {
-    scanMutation.mutate({ id: file.id }, {
-      onSuccess: () => queryClient.invalidateQueries({ queryKey: getListFilesQueryKey() }),
-    });
-  }
-
-  const canScan = isAdmin && (file.scanStatus === "pending" || file.scanStatus === "error");
   const date = new Date(file.uploadedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+  const hasImages = Array.isArray(file.images) && file.images.length > 0;
 
   return (
     <motion.div
       variants={item}
       data-testid={`card-file-${file.id}`}
-      className="bg-card border border-card-border p-3 flex items-center justify-between gap-3 hover:border-primary/50 transition-colors"
+      onClick={() => navigate(`/files/${file.id}`)}
+      className="bg-card border border-card-border p-3 flex items-center justify-between gap-3 hover:border-primary/50 transition-colors cursor-pointer"
     >
       <div className="flex-1 min-w-0">
-        <p
-          className="font-medium text-sm truncate"
-          data-testid={`text-filename-${file.id}`}
-          title={file.originalName}
-        >
-          {file.originalName}
-        </p>
+        <div className="flex items-center gap-2">
+          <p
+            className="font-medium text-sm truncate"
+            data-testid={`text-filename-${file.id}`}
+            title={file.originalName}
+          >
+            {file.originalName}
+          </p>
+          {hasImages && (
+            <span className="flex items-center gap-0.5 text-xs text-muted-foreground flex-shrink-0">
+              <Image className="w-3 h-3" />
+              {(file.images as string[]).length}
+            </span>
+          )}
+        </div>
         <div className="flex items-center gap-2 mt-1 flex-wrap">
           <ScanStatusBadge status={file.scanStatus} />
           <span className="text-xs text-muted-foreground font-mono">{formatBytes(file.size)}</span>
           <span className="text-xs text-muted-foreground">{date}</span>
-          {file.detectionRatio && (
-            <span className="text-xs font-mono text-muted-foreground">{file.detectionRatio} engines</span>
-          )}
         </div>
-        {file.scanDetails && file.scanStatus === "malicious" && (
-          <p className="text-xs text-red-400 mt-1">{file.scanDetails}</p>
+        {file.description && (
+          <p className="text-xs text-muted-foreground mt-1 truncate">{file.description}</p>
         )}
       </div>
 
       <div className="flex items-center gap-1 flex-shrink-0">
-        {/* Always visible: VirusTotal report link */}
-        {file.virusTotalLink && (
-          <a href={file.virusTotalLink} target="_blank" rel="noreferrer" data-testid={`link-vt-${file.id}`}>
-            <Button variant="ghost" size="icon" className="h-7 w-7" title="View VirusTotal report">
-              <ExternalLink className="w-3.5 h-3.5" />
-            </Button>
-          </a>
-        )}
-
-        {/* Always visible: Download */}
-        <a href={`${base}/api/files/${file.id}/download`} download={file.originalName} data-testid={`link-download-${file.id}`}>
+        <a
+          href={`${base}/api/files/${file.id}/download`}
+          download={file.originalName}
+          data-testid={`link-download-${file.id}`}
+          onClick={(e) => e.stopPropagation()}
+        >
           <Button variant="ghost" size="icon" className="h-7 w-7" title="Download file">
             <Download className="w-3.5 h-3.5" />
           </Button>
         </a>
 
-        {/* Admin only: Scan */}
-        {canScan && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={handleScan}
-            disabled={scanMutation.isPending}
-            data-testid={`button-scan-${file.id}`}
-            title="Scan with VirusTotal"
-          >
-            <ScanSearch className="w-3.5 h-3.5" />
-          </Button>
-        )}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 hover:text-destructive"
+          onClick={handleDelete}
+          disabled={deleteMutation.isPending}
+          data-testid={`button-delete-${file.id}`}
+          title="Delete file"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </Button>
 
-        {/* Admin only: Delete */}
-        {isAdmin && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 hover:text-destructive"
-            onClick={handleDelete}
-            disabled={deleteMutation.isPending}
-            data-testid={`button-delete-${file.id}`}
-            title="Delete file"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </Button>
-        )}
+        <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
       </div>
     </motion.div>
   );

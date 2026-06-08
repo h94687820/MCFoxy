@@ -9,48 +9,6 @@ export interface HealthStatus {
   status: string;
 }
 
-export interface AuthUser {
-  id: string;
-  /** @nullable */
-  email: string | null;
-  /** @nullable */
-  firstName: string | null;
-  /** @nullable */
-  lastName: string | null;
-  /** @nullable */
-  profileImageUrl: string | null;
-}
-
-export interface AuthUserEnvelope {
-  user: AuthUser | null;
-}
-
-export interface MobileTokenExchangeRequest {
-  /** @minLength 1 */
-  code: string;
-  /** @minLength 1 */
-  code_verifier: string;
-  /** @minLength 1 */
-  redirect_uri: string;
-  /** @minLength 1 */
-  state: string;
-  /** @minLength 1 */
-  nonce?: string;
-}
-
-export interface MobileTokenExchangeSuccess {
-  token: string;
-}
-
-export const LogoutSuccessValue = {
-  success: true,
-} as const;
-export type LogoutSuccess = typeof LogoutSuccessValue;
-
-export interface ErrorEnvelope {
-  error: string;
-}
-
 export type UploadedFileEdition = typeof UploadedFileEdition[keyof typeof UploadedFileEdition];
 
 
@@ -97,6 +55,9 @@ export interface UploadedFile {
   virusTotalLink?: string | null;
   /** @nullable */
   detectionRatio?: string | null;
+  /** @nullable */
+  description?: string | null;
+  images?: string[] | null;
 }
 
 export interface FileStats {
@@ -149,21 +110,6 @@ export interface SettingsInput {
   darkMode?: boolean;
   virusTotalEnabled?: boolean;
 }
-
-/**
- * Opaque session token — `Bearer <sid>`.
- */
-export type AuthorizationSessionHeaderParameter = string;
-
-export type BeginBrowserLoginParams = {
-returnTo?: string;
-};
-
-export type HandleBrowserLoginCallbackParams = {
-code?: string;
-state?: string;
-iss?: string;
-};
 
 export type ListFilesParams = {
 edition?: ListFilesEdition;

@@ -8,7 +8,6 @@ import {
   ListFilesQueryParams,
   GetFileParams,
   DeleteFileParams,
-  ScanFileParams,
 } from "@workspace/api-zod";
 
 const router = Router();
@@ -18,8 +17,19 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, uploadsDir),
+const imagesDir = path.join(uploadsDir, "images");
+if (!fs.existsSync(imagesDir)) {
+  fs.mkdirSync(imagesDir, { recursive: true });
+}
+
+const fileStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    if (_file.fieldname === "images") {
+      cb(null, imagesDir);
+    } else {
+      cb(null, uploadsDir);
+    }
+  },
   filename: (_req, file, cb) => {
     const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
     const ext = path.extname(file.originalname);
@@ -28,11 +38,27 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({
-  storage,
+  storage: fileStorage,
   limits: { fileSize: 500 * 1024 * 1024 },
 });
 
-// Allowed extensions per edition (server-side enforcement)
+const imageUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, imagesDir),
+    filename: (_req, file, cb) => {
+      const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+      const ext = path.extname(file.originalname);
+      cb(null, `${unique}${ext}`);
+    },
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = [".jpg", ".jpeg", ".png", ".gif", ".webp"];
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, allowed.includes(ext));
+  },
+});
+
 const JAVA_EXTENSIONS = new Set([".jar", ".zip"]);
 const BEDROCK_EXTENSIONS = new Set([".mcpack", ".mcworld", ".mcaddon", ".mctemplate"]);
 
@@ -40,15 +66,11 @@ function getAllowedExtensions(edition: string): Set<string> {
   return edition === "java" ? JAVA_EXTENSIONS : BEDROCK_EXTENSIONS;
 }
 
-function requireAdmin(req: Parameters<Router>[0], res: Parameters<Router>[1]): boolean {
-  if (!req.isAuthenticated()) {
-    res.status(401).json({ error: "Authentication required" });
-    return false;
-  }
-  return true;
+function fileToResponse(f: typeof filesTable.$inferSelect) {
+  return { ...f, uploadedAt: f.uploadedAt.toISOString() };
 }
 
-// ── Public: list files ──────────────────────────────────────────────────────
+// ── List files ───────────────────────────────────────────────────────────────
 router.get("/files", async (req, res) => {
   const parseResult = ListFilesQueryParams.safeParse(req.query);
   if (!parseResult.success) return res.status(400).json({ error: "Invalid query params" });
@@ -63,10 +85,10 @@ router.get("/files", async (req, res) => {
     ? await db.select().from(filesTable).where(and(...conditions)).orderBy(filesTable.uploadedAt)
     : await db.select().from(filesTable).orderBy(filesTable.uploadedAt);
 
-  return res.json(files.map((f) => ({ ...f, uploadedAt: f.uploadedAt.toISOString() })));
+  return res.json(files.map(fileToResponse));
 });
 
-// ── Public: stats — MUST be before /:id ─────────────────────────────────────
+// ── Stats — MUST be before /:id ──────────────────────────────────────────────
 router.get("/files/stats", async (_req, res) => {
   const rows = await db
     .select({ edition: filesTable.edition, type: filesTable.type, scanStatus: filesTable.scanStatus, size: filesTable.size })
@@ -87,54 +109,114 @@ router.get("/files/stats", async (_req, res) => {
   });
 });
 
-// ── Admin: upload ─────────────────────────────────────────────────────────────
-router.post("/files/upload", upload.single("file"), async (req, res) => {
-  if (!requireAdmin(req, res)) {
-    if (req.file?.path) fs.unlinkSync(req.file.path);
-    return;
-  }
+// ── Upload ────────────────────────────────────────────────────────────────────
+router.post(
+  "/files/upload",
+  upload.fields([
+    { name: "file", maxCount: 1 },
+    { name: "images", maxCount: 10 },
+  ]),
+  async (req, res) => {
+    const fields = req.files as Record<string, Express.Multer.File[]> | undefined;
+    const mainFile = fields?.["file"]?.[0];
+    const imageFiles = fields?.["images"] ?? [];
 
-  if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+    if (!mainFile) return res.status(400).json({ error: "No file uploaded" });
 
-  const { type, edition } = req.body as { type?: string; edition?: string };
+    const { type, edition, description } = req.body as {
+      type?: string;
+      edition?: string;
+      description?: string;
+    };
 
-  if (!type || !["mod", "map"].includes(type)) {
-    fs.unlinkSync(req.file.path);
-    return res.status(400).json({ error: "type must be 'mod' or 'map'" });
-  }
-  if (!edition || !["java", "bedrock"].includes(edition)) {
-    fs.unlinkSync(req.file.path);
-    return res.status(400).json({ error: "edition must be 'java' or 'bedrock'" });
-  }
+    if (!type || !["mod", "map"].includes(type)) {
+      fs.unlinkSync(mainFile.path);
+      imageFiles.forEach((f) => fs.existsSync(f.path) && fs.unlinkSync(f.path));
+      return res.status(400).json({ error: "type must be 'mod' or 'map'" });
+    }
+    if (!edition || !["java", "bedrock"].includes(edition)) {
+      fs.unlinkSync(mainFile.path);
+      imageFiles.forEach((f) => fs.existsSync(f.path) && fs.unlinkSync(f.path));
+      return res.status(400).json({ error: "edition must be 'java' or 'bedrock'" });
+    }
 
-  // Server-side edition/extension validation
-  const ext = path.extname(req.file.originalname).toLowerCase();
-  const allowed = getAllowedExtensions(edition);
-  if (!allowed.has(ext)) {
-    fs.unlinkSync(req.file.path);
-    return res.status(400).json({
-      error: `${edition === "java" ? "Java" : "Bedrock"} Edition does not accept ${ext || "this"} files. Allowed: ${[...allowed].join(", ")}`,
-    });
-  }
+    const ext = path.extname(mainFile.originalname).toLowerCase();
+    const allowed = getAllowedExtensions(edition);
+    if (!allowed.has(ext)) {
+      fs.unlinkSync(mainFile.path);
+      imageFiles.forEach((f) => fs.existsSync(f.path) && fs.unlinkSync(f.path));
+      return res.status(400).json({
+        error: `${edition === "java" ? "Java" : "Bedrock"} Edition does not accept ${ext || "this"} files. Allowed: ${[...allowed].join(", ")}`,
+      });
+    }
 
-  const [inserted] = await db
-    .insert(filesTable)
-    .values({
-      name: req.file.filename,
-      originalName: req.file.originalname,
-      edition,
-      type,
-      size: req.file.size,
-      mimeType: req.file.mimetype,
-      filePath: req.file.path,
-      scanStatus: "pending",
-    })
-    .returning();
+    const imageNames = imageFiles.map((f) => f.filename);
 
-  return res.status(201).json({ ...inserted, uploadedAt: inserted.uploadedAt.toISOString() });
-});
+    const [inserted] = await db
+      .insert(filesTable)
+      .values({
+        name: mainFile.filename,
+        originalName: mainFile.originalname,
+        edition,
+        type,
+        size: mainFile.size,
+        mimeType: mainFile.mimetype,
+        filePath: mainFile.path,
+        scanStatus: "pending",
+        description: description ?? null,
+        images: imageNames,
+      })
+      .returning();
 
-// ── Public: download ──────────────────────────────────────────────────────────
+    // Auto-trigger VT scan in background
+    const apiKey = process.env.VIRUSTOTAL_API_KEY;
+    if (apiKey && fs.existsSync(mainFile.path)) {
+      performScan(inserted.id, mainFile.path, apiKey).catch(async (err) => {
+        await db
+          .update(filesTable)
+          .set({ scanStatus: "error", scanDetails: String(err) })
+          .where(eq(filesTable.id, inserted.id));
+      });
+    }
+
+    return res.status(201).json(fileToResponse(inserted));
+  },
+);
+
+// ── Update description/images ─────────────────────────────────────────────────
+router.patch(
+  "/files/:id",
+  imageUpload.array("images", 10),
+  async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid id" });
+
+    const [file] = await db.select().from(filesTable).where(eq(filesTable.id, id));
+    if (!file) {
+      const newImages = (req.files as Express.Multer.File[] | undefined) ?? [];
+      newImages.forEach((f) => fs.existsSync(f.path) && fs.unlinkSync(f.path));
+      return res.status(404).json({ error: "Not found" });
+    }
+
+    const { description } = req.body as { description?: string };
+    const newImages = (req.files as Express.Multer.File[] | undefined) ?? [];
+    const newImageNames = newImages.map((f) => f.filename);
+    const existingImages = file.images ?? [];
+
+    const [updated] = await db
+      .update(filesTable)
+      .set({
+        description: description !== undefined ? description : file.description,
+        images: [...existingImages, ...newImageNames],
+      })
+      .where(eq(filesTable.id, id))
+      .returning();
+
+    return res.json(fileToResponse(updated));
+  },
+);
+
+// ── Download ──────────────────────────────────────────────────────────────────
 router.get("/files/:id/download", async (req, res) => {
   const parseResult = GetFileParams.safeParse({ id: Number(req.params.id) });
   if (!parseResult.success) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -152,7 +234,7 @@ router.get("/files/:id/download", async (req, res) => {
   stream.pipe(res);
 });
 
-// ── Public: get file ──────────────────────────────────────────────────────────
+// ── Get file ──────────────────────────────────────────────────────────────────
 router.get("/files/:id", async (req, res) => {
   const parseResult = GetFileParams.safeParse({ id: Number(req.params.id) });
   if (!parseResult.success) return res.status(400).json({ error: "Invalid id" });
@@ -160,13 +242,11 @@ router.get("/files/:id", async (req, res) => {
   const [file] = await db.select().from(filesTable).where(eq(filesTable.id, parseResult.data.id));
   if (!file) return res.status(404).json({ error: "Not found" });
 
-  return res.json({ ...file, uploadedAt: file.uploadedAt.toISOString() });
+  return res.json(fileToResponse(file));
 });
 
-// ── Admin: delete file ────────────────────────────────────────────────────────
+// ── Delete file ───────────────────────────────────────────────────────────────
 router.delete("/files/:id", async (req, res) => {
-  if (!requireAdmin(req, res)) return;
-
   const parseResult = DeleteFileParams.safeParse({ id: Number(req.params.id) });
   if (!parseResult.success) return res.status(400).json({ error: "Invalid id" });
 
@@ -174,51 +254,14 @@ router.delete("/files/:id", async (req, res) => {
   if (!file) return res.status(404).json({ error: "Not found" });
 
   if (fs.existsSync(file.filePath)) fs.unlinkSync(file.filePath);
+  const imgs = file.images ?? [];
+  imgs.forEach((imgName) => {
+    const imgPath = path.join(imagesDir, imgName);
+    if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath);
+  });
   await db.delete(filesTable).where(eq(filesTable.id, parseResult.data.id));
 
   return res.status(204).send();
-});
-
-// ── Admin: scan file ──────────────────────────────────────────────────────────
-router.post("/files/:id/scan", async (req, res) => {
-  if (!requireAdmin(req, res)) return;
-
-  const parseResult = ScanFileParams.safeParse({ id: Number(req.params.id) });
-  if (!parseResult.success) return res.status(400).json({ error: "Invalid id" });
-
-  const [file] = await db.select().from(filesTable).where(eq(filesTable.id, parseResult.data.id));
-  if (!file) return res.status(404).json({ error: "Not found" });
-
-  const apiKey = process.env.VIRUSTOTAL_API_KEY;
-  if (!apiKey) {
-    const [updated] = await db
-      .update(filesTable)
-      .set({ scanStatus: "error", scanDetails: "VirusTotal API key not configured" })
-      .where(eq(filesTable.id, file.id))
-      .returning();
-    return res.json({ ...updated, uploadedAt: updated.uploadedAt.toISOString() });
-  }
-
-  if (!fs.existsSync(file.filePath)) {
-    const [updated] = await db
-      .update(filesTable)
-      .set({ scanStatus: "error", scanDetails: "File not found on disk" })
-      .where(eq(filesTable.id, file.id))
-      .returning();
-    return res.json({ ...updated, uploadedAt: updated.uploadedAt.toISOString() });
-  }
-
-  await db.update(filesTable).set({ scanStatus: "scanning" }).where(eq(filesTable.id, file.id));
-
-  performScan(file.id, file.filePath, apiKey).catch(async (err) => {
-    await db
-      .update(filesTable)
-      .set({ scanStatus: "error", scanDetails: String(err) })
-      .where(eq(filesTable.id, file.id));
-  });
-
-  const [scanning] = await db.select().from(filesTable).where(eq(filesTable.id, file.id));
-  return res.json({ ...scanning, uploadedAt: scanning.uploadedAt.toISOString() });
 });
 
 async function performScan(fileId: number, filePath: string, apiKey: string) {
