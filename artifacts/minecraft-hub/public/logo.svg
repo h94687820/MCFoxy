@@ -1,26 +1,47 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none">
   <!-- Background -->
-  <rect width="40" height="40" fill="#e8e8e8"/>
-  <!-- Fox head base -->
-  <rect x="6" y="12" width="28" height="22" fill="#f5f5f5"/>
-  <!-- Left ear -->
-  <rect x="6" y="4" width="10" height="14" fill="#f5f5f5"/>
-  <!-- Right ear -->
-  <rect x="24" y="4" width="10" height="14" fill="#f5f5f5"/>
-  <!-- Ear tips orange -->
-  <rect x="7" y="5" width="7" height="8" fill="#e8721a"/>
-  <rect x="26" y="5" width="7" height="8" fill="#e8721a"/>
-  <!-- Gray top of head -->
-  <rect x="13" y="12" width="14" height="5" fill="#bbbbbb"/>
-  <!-- Left eye -->
-  <rect x="10" y="19" width="6" height="6" fill="#1a1a1a"/>
-  <rect x="11" y="20" width="2" height="2" fill="#ffffff"/>
-  <!-- Right eye -->
-  <rect x="24" y="19" width="6" height="6" fill="#1a1a1a"/>
-  <rect x="25" y="20" width="2" height="2" fill="#ffffff"/>
+  <rect width="40" height="40" fill="#1a1a2e"/>
+
+  <!-- Tail -->
+  <rect x="2" y="18" width="10" height="8" fill="#f0f0f0"/>
+  <!-- Tail tip orange -->
+  <rect x="2" y="18" width="5" height="4" fill="#e8721a"/>
+  <!-- Tail shading -->
+  <rect x="2" y="24" width="10" height="2" fill="#d0d0d0"/>
+
+  <!-- Body -->
+  <rect x="11" y="19" width="17" height="12" fill="#f5f5f5"/>
+  <rect x="11" y="27" width="17" height="4" fill="#e0e0e0"/>
+
+  <!-- Back leg -->
+  <rect x="13" y="30" width="4" height="6" fill="#e0e0e0"/>
+  <rect x="12" y="35" width="6" height="2" fill="#cccccc"/>
+
+  <!-- Front leg -->
+  <rect x="22" y="30" width="4" height="6" fill="#e0e0e0"/>
+  <rect x="21" y="35" width="6" height="2" fill="#cccccc"/>
+
+  <!-- Head -->
+  <rect x="24" y="10" width="14" height="13" fill="#f5f5f5"/>
+  <rect x="24" y="10" width="14" height="3" fill="#e8e8e8"/>
+
+  <!-- Back ear -->
+  <rect x="26" y="5" width="4" height="7" fill="#f0f0f0"/>
+  <rect x="27" y="6" width="2" height="4" fill="#e8721a"/>
+
+  <!-- Front ear -->
+  <rect x="33" y="5" width="4" height="7" fill="#f0f0f0"/>
+  <rect x="34" y="6" width="2" height="4" fill="#e8721a"/>
+
+  <!-- Eye -->
+  <rect x="34" y="15" width="3" height="3" fill="#1a1a1a"/>
+  <rect x="35" y="16" width="1" height="1" fill="#ffffff"/>
+
+  <!-- Muzzle -->
+  <rect x="34" y="18" width="5" height="4" fill="#ececec"/>
   <!-- Nose -->
-  <rect x="18" y="26" width="4" height="3" fill="#1a1a1a"/>
-  <!-- Cheeks white -->
-  <rect x="8" y="24" width="7" height="6" fill="#ffffff"/>
-  <rect x="25" y="24" width="7" height="6" fill="#ffffff"/>
+  <rect x="36" y="18" width="2" height="2" fill="#1a1a1a"/>
+
+  <!-- Neck -->
+  <rect x="26" y="22" width="10" height="3" fill="#f0f0f0"/>
 </svg>
