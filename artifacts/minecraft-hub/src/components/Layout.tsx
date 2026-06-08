@@ -1,9 +1,10 @@
 import { Link, useLocation } from "wouter";
-import { LayoutGrid, Upload, Settings, Shield, Box, Download, LogIn, LogOut, User } from "lucide-react";
+import { LayoutGrid, Upload, Settings, Shield, Box, Download, LogIn, LogOut, User, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePWAInstall } from "@/hooks/use-pwa-install";
 import { useClerk, useUser } from "@clerk/react";
 import { useLanguage } from "@/contexts/language-context";
+import { useState, useEffect } from "react";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -17,6 +18,9 @@ export default function Layout({ children }: LayoutProps) {
   const { signOut } = useClerk();
   const { user, isLoaded } = useUser();
   const { t } = useLanguage();
+  const [installBannerDismissed, setInstallBannerDismissed] = useState(() =>
+    localStorage.getItem("pwa-banner-dismissed") === "1"
+  );
 
   const navItems = [
     { href: "/", label: t.nav.dashboard, icon: LayoutGrid },
@@ -24,10 +28,43 @@ export default function Layout({ children }: LayoutProps) {
     { href: "/settings", label: t.nav.settings, icon: Settings },
   ];
 
+  function dismissBanner() {
+    setInstallBannerDismissed(true);
+    localStorage.setItem("pwa-banner-dismissed", "1");
+  }
+
+  async function handleInstall() {
+    await install();
+    dismissBanner();
+  }
+
+  const showInstallBanner = canInstall && !installBannerDismissed;
+
   return (
-    <div className="flex min-h-screen">
-      {/* Sidebar */}
-      <aside className="w-64 flex-shrink-0 bg-sidebar border-r border-sidebar-border flex flex-col">
+    <div className="flex min-h-screen flex-col md:flex-row">
+
+      {/* ── Install Banner (mobile top) ─────────────────────────────────────── */}
+      {showInstallBanner && (
+        <div className="md:hidden fixed top-0 left-0 right-0 z-50 bg-primary text-primary-foreground flex items-center gap-3 px-4 py-3 shadow-lg">
+          <Box className="w-5 h-5 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold leading-none">ModVault</p>
+            <p className="text-xs opacity-80 mt-0.5">{t.nav.install}</p>
+          </div>
+          <button
+            onClick={handleInstall}
+            className="flex-shrink-0 bg-primary-foreground text-primary text-xs font-bold px-3 py-1.5"
+          >
+            {t.nav.install}
+          </button>
+          <button onClick={dismissBanner} className="flex-shrink-0 opacity-70 hover:opacity-100">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* ── Desktop Sidebar ──────────────────────────────────────────────────── */}
+      <aside className="hidden md:flex w-64 flex-shrink-0 bg-sidebar border-r border-sidebar-border flex-col">
         {/* Logo */}
         <div className="p-6 border-b border-sidebar-border">
           <div className="flex items-center gap-3">
@@ -35,12 +72,8 @@ export default function Layout({ children }: LayoutProps) {
               <Box className="w-5 h-5 text-primary-foreground" />
             </div>
             <div>
-              <p className="font-bold text-sidebar-foreground leading-none tracking-tight">
-                ModVault
-              </p>
-              <p className="text-xs text-muted-foreground mt-0.5 font-mono">
-                Mods &amp; Maps Hub
-              </p>
+              <p className="font-bold text-sidebar-foreground leading-none tracking-tight">ModVault</p>
+              <p className="text-xs text-muted-foreground mt-0.5 font-mono">Mods &amp; Maps Hub</p>
             </div>
           </div>
         </div>
@@ -70,17 +103,12 @@ export default function Layout({ children }: LayoutProps) {
 
         {/* Footer */}
         <div className="p-4 border-t border-sidebar-border space-y-3">
-          {/* User section */}
           {isLoaded && (
             user ? (
               <div className="space-y-2">
                 <div className="flex items-center gap-2.5 px-1">
                   {user.imageUrl ? (
-                    <img
-                      src={user.imageUrl}
-                      alt={user.fullName ?? "User"}
-                      className="w-6 h-6 rounded-full flex-shrink-0 object-cover"
-                    />
+                    <img src={user.imageUrl} alt={user.fullName ?? "User"} className="w-6 h-6 rounded-full flex-shrink-0 object-cover" />
                   ) : (
                     <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
                       <User className="w-3 h-3 text-primary" />
@@ -108,10 +136,9 @@ export default function Layout({ children }: LayoutProps) {
               </Link>
             )
           )}
-
           {canInstall && (
             <button
-              onClick={install}
+              onClick={handleInstall}
               className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-sidebar-foreground border border-sidebar-border hover:border-primary/60 hover:text-primary transition-colors"
             >
               <Download className="w-3.5 h-3.5 flex-shrink-0" />
@@ -125,10 +152,71 @@ export default function Layout({ children }: LayoutProps) {
         </div>
       </aside>
 
-      {/* Main */}
-      <main className="flex-1 overflow-auto">
+      {/* ── Mobile Top Bar ───────────────────────────────────────────────────── */}
+      <header className={cn(
+        "md:hidden flex items-center justify-between px-4 bg-sidebar border-b border-sidebar-border flex-shrink-0",
+        showInstallBanner ? "mt-14 h-14" : "h-14"
+      )}>
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 bg-primary flex items-center justify-center">
+            <Box className="w-4 h-4 text-primary-foreground" />
+          </div>
+          <span className="font-bold text-sm tracking-tight">ModVault</span>
+        </div>
+        {isLoaded && (
+          user ? (
+            <button
+              onClick={() => signOut({ redirectUrl: basePath || "/" })}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground"
+            >
+              {user.imageUrl ? (
+                <img src={user.imageUrl} alt="" className="w-6 h-6 rounded-full object-cover" />
+              ) : (
+                <User className="w-4 h-4" />
+              )}
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
+          ) : (
+            <Link href="/sign-in" className="text-xs text-primary font-medium flex items-center gap-1">
+              <LogIn className="w-3.5 h-3.5" />
+              {t.nav.signIn}
+            </Link>
+          )
+        )}
+      </header>
+
+      {/* ── Main Content ─────────────────────────────────────────────────────── */}
+      <main className={cn(
+        "flex-1 overflow-auto",
+        "pb-20 md:pb-0"
+      )}>
         {children}
       </main>
+
+      {/* ── Mobile Bottom Navigation ─────────────────────────────────────────── */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-sidebar border-t border-sidebar-border flex items-stretch h-16 safe-area-pb">
+        {navItems.map(({ href, label, icon: Icon }) => {
+          const isActive = location === href;
+          return (
+            <Link
+              key={href}
+              href={href}
+              className={cn(
+                "flex-1 flex flex-col items-center justify-center gap-1 text-[10px] font-medium transition-colors",
+                isActive ? "text-primary" : "text-muted-foreground"
+              )}
+            >
+              <Icon className={cn("w-5 h-5", isActive && "text-primary")} />
+              <span>{label}</span>
+            </Link>
+          );
+        })}
+        {/* Shield icon for security badge */}
+        <div className="flex-1 flex flex-col items-center justify-center gap-1 text-[10px] text-muted-foreground/50">
+          <Shield className="w-5 h-5" />
+          <span>Safe</span>
+        </div>
+      </nav>
     </div>
   );
 }
