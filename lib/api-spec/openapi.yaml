@@ -3,13 +3,18 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Minecraft Mods & Maps Hub API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: files
+    description: Mod and map file operations
+  - name: settings
+    description: User settings
+
 paths:
   /healthz:
     get:
@@ -24,6 +29,135 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /files:
+    get:
+      operationId: listFiles
+      tags: [files]
+      summary: List all uploaded files
+      parameters:
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [mod, map]
+        - name: scanStatus
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [pending, scanning, clean, malicious, error]
+      responses:
+        "200":
+          description: List of uploaded files
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UploadedFile"
+
+  /files/{id}:
+    get:
+      operationId: getFile
+      tags: [files]
+      summary: Get file details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: File details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadedFile"
+        "404":
+          description: Not found
+
+    delete:
+      operationId: deleteFile
+      tags: [files]
+      summary: Delete a file
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /files/{id}/scan:
+    post:
+      operationId: scanFile
+      tags: [files]
+      summary: Trigger VirusTotal scan for a file
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Scan triggered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadedFile"
+        "404":
+          description: Not found
+
+  /files/stats:
+    get:
+      operationId: getFileStats
+      tags: [files]
+      summary: Get file upload statistics
+      responses:
+        "200":
+          description: Summary statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileStats"
+
+  /settings:
+    get:
+      operationId: getSettings
+      tags: [settings]
+      summary: Get current settings
+      responses:
+        "200":
+          description: Current settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Settings"
+
+    put:
+      operationId: updateSettings
+      tags: [settings]
+      summary: Update settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SettingsInput"
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Settings"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +168,95 @@ components:
       required:
         - status
 
+    UploadedFile:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        originalName:
+          type: string
+        type:
+          type: string
+          enum: [mod, map]
+        size:
+          type: integer
+        mimeType:
+          type: ["string", "null"]
+        uploadedAt:
+          type: string
+        scanStatus:
+          type: string
+          enum: [pending, scanning, clean, malicious, error]
+        scanDetails:
+          type: ["string", "null"]
+        scanEngine:
+          type: ["string", "null"]
+        virusTotalLink:
+          type: ["string", "null"]
+        detectionRatio:
+          type: ["string", "null"]
+      required:
+        - id
+        - name
+        - originalName
+        - type
+        - size
+        - uploadedAt
+        - scanStatus
+
+    FileStats:
+      type: object
+      properties:
+        totalFiles:
+          type: integer
+        totalMods:
+          type: integer
+        totalMaps:
+          type: integer
+        cleanFiles:
+          type: integer
+        maliciousFiles:
+          type: integer
+        pendingFiles:
+          type: integer
+        totalSizeBytes:
+          type: integer
+      required:
+        - totalFiles
+        - totalMods
+        - totalMaps
+        - cleanFiles
+        - maliciousFiles
+        - pendingFiles
+        - totalSizeBytes
+
+    Settings:
+      type: object
+      properties:
+        id:
+          type: integer
+        theme:
+          type: string
+          enum: [creeper, nether, ocean, end, sky, default]
+        darkMode:
+          type: boolean
+        virusTotalEnabled:
+          type: boolean
+      required:
+        - id
+        - theme
+        - darkMode
+        - virusTotalEnabled
+
+    SettingsInput:
+      type: object
+      properties:
+        theme:
+          type: string
+          enum: [creeper, nether, ocean, end, sky, default]
+        darkMode:
+          type: boolean
+        virusTotalEnabled:
+          type: boolean

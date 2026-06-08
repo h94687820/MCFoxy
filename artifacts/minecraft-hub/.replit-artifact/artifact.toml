@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Minecraft Mods & Maps Hub"
+version = "1.0.0"
+id = "artifacts/minecraft-hub"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 18234
+
+[services.development]
+run = "pnpm --filter @workspace/minecraft-hub run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/minecraft-hub", "run", "build" ]
+publicDir = "artifacts/minecraft-hub/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18234"
+BASE_PATH = "/"
