@@ -1,13 +1,16 @@
 import { Link, useLocation } from "wouter";
-import { LayoutGrid, Upload, Settings, Shield, Box, Download } from "lucide-react";
+import { LayoutGrid, Upload, Settings, Shield, Box, Download, LogIn, LogOut, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePWAInstall } from "@/hooks/use-pwa-install";
+import { useClerk, useUser } from "@clerk/react";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutGrid },
   { href: "/upload", label: "Upload", icon: Upload },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
+
+const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -16,6 +19,8 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
   const { canInstall, install } = usePWAInstall();
+  const { signOut } = useClerk();
+  const { user, isLoaded } = useUser();
 
   return (
     <div className="flex min-h-screen">
@@ -63,13 +68,52 @@ export default function Layout({ children }: LayoutProps) {
 
         {/* Footer */}
         <div className="p-4 border-t border-sidebar-border space-y-3">
+          {/* User section */}
+          {isLoaded && (
+            user ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2.5 px-1">
+                  {user.imageUrl ? (
+                    <img
+                      src={user.imageUrl}
+                      alt={user.fullName ?? "User"}
+                      className="w-6 h-6 rounded-full flex-shrink-0 object-cover"
+                    />
+                  ) : (
+                    <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                      <User className="w-3 h-3 text-primary" />
+                    </div>
+                  )}
+                  <span className="text-xs text-sidebar-foreground truncate flex-1">
+                    {user.fullName ?? user.primaryEmailAddress?.emailAddress ?? "User"}
+                  </span>
+                </div>
+                <button
+                  onClick={() => signOut({ redirectUrl: basePath || "/" })}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-muted-foreground border border-sidebar-border hover:border-primary/60 hover:text-primary transition-colors"
+                >
+                  <LogOut className="w-3.5 h-3.5 flex-shrink-0" />
+                  Sign out
+                </button>
+              </div>
+            ) : (
+              <Link
+                href="/sign-in"
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-muted-foreground border border-sidebar-border hover:border-primary/60 hover:text-primary transition-colors"
+              >
+                <LogIn className="w-3.5 h-3.5 flex-shrink-0" />
+                Sign in
+              </Link>
+            )
+          )}
+
           {canInstall && (
             <button
               onClick={install}
               className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-sidebar-foreground border border-sidebar-border hover:border-primary/60 hover:text-primary transition-colors"
             >
               <Download className="w-3.5 h-3.5 flex-shrink-0" />
-              Install App (APK)
+              Install App
             </button>
           )}
           <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono">

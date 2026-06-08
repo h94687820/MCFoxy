@@ -58,6 +58,8 @@ export interface UploadedFile {
   /** @nullable */
   description?: string | null;
   images?: string[] | null;
+  /** @nullable */
+  uploadedBy?: string | null;
 }
 
 export interface FileStats {

@@ -40,7 +40,8 @@ export const ListFilesResponseItem = zod.object({
   "virusTotalLink": zod.string().nullish(),
   "detectionRatio": zod.string().nullish(),
   "description": zod.string().nullish(),
-  "images": zod.array(zod.string()).nullish()
+  "images": zod.array(zod.string()).nullish(),
+  "uploadedBy": zod.string().nullish()
 })
 export const ListFilesResponse = zod.array(ListFilesResponseItem)
 
@@ -67,7 +68,8 @@ export const GetFileResponse = zod.object({
   "virusTotalLink": zod.string().nullish(),
   "detectionRatio": zod.string().nullish(),
   "description": zod.string().nullish(),
-  "images": zod.array(zod.string()).nullish()
+  "images": zod.array(zod.string()).nullish(),
+  "uploadedBy": zod.string().nullish()
 })
 
 

@@ -4,6 +4,7 @@ import path from "path";
 import fs from "fs";
 import { db, filesTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
+import { getAuth } from "@clerk/express";
 import {
   ListFilesQueryParams,
   GetFileParams,
@@ -59,6 +60,15 @@ const imageUpload = multer({
   },
 });
 
+function requireAuth(req: any, res: any, next: any) {
+  const auth = getAuth(req);
+  if (!auth.userId) {
+    return res.status(401).json({ error: "Unauthorized — please sign in" });
+  }
+  req.userId = auth.userId;
+  next();
+}
+
 const JAVA_EXTENSIONS = new Set([".jar", ".zip"]);
 const BEDROCK_EXTENSIONS = new Set([".mcpack", ".mcworld", ".mcaddon", ".mctemplate"]);
 
@@ -109,14 +119,16 @@ router.get("/files/stats", async (_req, res) => {
   });
 });
 
-// ── Upload ────────────────────────────────────────────────────────────────────
+// ── Upload (requires auth) ────────────────────────────────────────────────────
 router.post(
   "/files/upload",
+  requireAuth,
   upload.fields([
     { name: "file", maxCount: 1 },
     { name: "images", maxCount: 10 },
   ]),
   async (req, res) => {
+    const userId = (req as any).userId as string;
     const fields = req.files as Record<string, Express.Multer.File[]> | undefined;
     const mainFile = fields?.["file"]?.[0];
     const imageFiles = fields?.["images"] ?? [];
@@ -165,15 +177,14 @@ router.post(
         scanStatus: "pending",
         description: description ?? null,
         images: imageNames,
+        uploadedBy: userId,
       })
       .returning();
 
-    // Auto-trigger VT scan in background
     const apiKey = process.env.VIRUSTOTAL_API_KEY;
     if (apiKey && fs.existsSync(mainFile.path)) {
       performScan(inserted.id, mainFile.path, apiKey).catch(async (err) => {
         const msg = String(err);
-        // Timeout/rate-limit → stay pending so it doesn't alarm users
         const isTransient = msg.includes("timed out") || msg.includes("rate") || msg.includes("429");
         await db
           .update(filesTable)
@@ -189,11 +200,13 @@ router.post(
   },
 );
 
-// ── Update description/images ─────────────────────────────────────────────────
+// ── Update description/images (requires auth + ownership) ────────────────────
 router.patch(
   "/files/:id",
+  requireAuth,
   imageUpload.array("images", 10),
   async (req, res) => {
+    const userId = (req as any).userId as string;
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid id" });
 
@@ -202,6 +215,12 @@ router.patch(
       const newImages = (req.files as Express.Multer.File[] | undefined) ?? [];
       newImages.forEach((f) => fs.existsSync(f.path) && fs.unlinkSync(f.path));
       return res.status(404).json({ error: "Not found" });
+    }
+
+    if (file.uploadedBy !== userId) {
+      const newImages = (req.files as Express.Multer.File[] | undefined) ?? [];
+      newImages.forEach((f) => fs.existsSync(f.path) && fs.unlinkSync(f.path));
+      return res.status(403).json({ error: "Forbidden — you can only edit your own files" });
     }
 
     const { description } = req.body as { description?: string };
@@ -251,13 +270,18 @@ router.get("/files/:id", async (req, res) => {
   return res.json(fileToResponse(file));
 });
 
-// ── Delete file ───────────────────────────────────────────────────────────────
-router.delete("/files/:id", async (req, res) => {
+// ── Delete file (requires auth + ownership) ───────────────────────────────────
+router.delete("/files/:id", requireAuth, async (req, res) => {
+  const userId = (req as any).userId as string;
   const parseResult = DeleteFileParams.safeParse({ id: Number(req.params.id) });
   if (!parseResult.success) return res.status(400).json({ error: "Invalid id" });
 
   const [file] = await db.select().from(filesTable).where(eq(filesTable.id, parseResult.data.id));
   if (!file) return res.status(404).json({ error: "Not found" });
+
+  if (file.uploadedBy !== userId) {
+    return res.status(403).json({ error: "Forbidden — you can only delete your own files" });
+  }
 
   if (fs.existsSync(file.filePath)) fs.unlinkSync(file.filePath);
   const imgs = file.images ?? [];

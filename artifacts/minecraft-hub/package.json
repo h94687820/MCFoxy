@@ -75,5 +75,9 @@
     "vite-plugin-pwa": "^1.3.0",
     "wouter": "^3.3.5",
     "zod": "catalog:"
+  },
+  "dependencies": {
+    "@clerk/react": "^6.7.3",
+    "@clerk/themes": "^2.4.57"
   }
 }

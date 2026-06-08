@@ -9,6 +9,7 @@ import {
   useDeleteFile,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useUser } from "@clerk/react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import {
@@ -86,6 +87,9 @@ function FileRow({ file }: { file: UploadedFile }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const deleteMutation = useDeleteFile();
+  const { user } = useUser();
+
+  const isOwner = !!user && file.uploadedBy === user.id;
 
   function handleDelete(e: React.MouseEvent) {
     e.stopPropagation();
@@ -145,17 +149,19 @@ function FileRow({ file }: { file: UploadedFile }) {
           </Button>
         </a>
 
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7 hover:text-destructive"
-          onClick={handleDelete}
-          disabled={deleteMutation.isPending}
-          data-testid={`button-delete-${file.id}`}
-          title="Delete file"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </Button>
+        {isOwner && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 hover:text-destructive"
+            onClick={handleDelete}
+            disabled={deleteMutation.isPending}
+            data-testid={`button-delete-${file.id}`}
+            title="Delete file"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </Button>
+        )}
 
         <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
       </div>

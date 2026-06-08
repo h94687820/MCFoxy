@@ -19,6 +19,7 @@ export const filesTable = pgTable("files", {
   detectionRatio: text("detection_ratio"),
   description: text("description"),
   images: jsonb("images").$type<string[]>().default([]),
+  uploadedBy: text("uploaded_by"),
 });
 
 export const insertFileSchema = createInsertSchema(filesTable).omit({ id: true, uploadedAt: true });

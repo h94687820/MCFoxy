@@ -3,6 +3,7 @@ import { useParams } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
 import { useGetFile, getListFilesQueryKey } from "@workspace/api-client-react";
+import { useUser } from "@clerk/react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -45,10 +46,11 @@ function ScanStatusBadge({ status }: { status: string }) {
 interface ImageGalleryProps {
   images: string[];
   fileId: number;
+  isOwner: boolean;
   onImagesUpdated: () => void;
 }
 
-function ImageGallery({ images, fileId, onImagesUpdated }: ImageGalleryProps) {
+function ImageGallery({ images, fileId, isOwner, onImagesUpdated }: ImageGalleryProps) {
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -76,14 +78,16 @@ function ImageGallery({ images, fileId, onImagesUpdated }: ImageGalleryProps) {
     <div>
       <div className="flex items-center justify-between mb-3">
         <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Screenshots</p>
-        <button
-          onClick={() => imageInputRef.current?.click()}
-          disabled={uploading}
-          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-        >
-          {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImagePlus className="w-3.5 h-3.5" />}
-          Add images
-        </button>
+        {isOwner && (
+          <button
+            onClick={() => imageInputRef.current?.click()}
+            disabled={uploading}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+          >
+            {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImagePlus className="w-3.5 h-3.5" />}
+            Add images
+          </button>
+        )}
         <input
           ref={imageInputRef}
           type="file"
@@ -98,12 +102,14 @@ function ImageGallery({ images, fileId, onImagesUpdated }: ImageGalleryProps) {
         <div className="border border-dashed border-border p-6 flex flex-col items-center gap-2 text-center">
           <ImagePlus className="w-5 h-5 text-muted-foreground" />
           <p className="text-xs text-muted-foreground">No screenshots yet</p>
-          <button
-            onClick={() => imageInputRef.current?.click()}
-            className="text-xs text-primary hover:underline mt-1"
-          >
-            Add the first screenshot
-          </button>
+          {isOwner && (
+            <button
+              onClick={() => imageInputRef.current?.click()}
+              className="text-xs text-primary hover:underline mt-1"
+            >
+              Add the first screenshot
+            </button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -154,10 +160,11 @@ function ImageGallery({ images, fileId, onImagesUpdated }: ImageGalleryProps) {
 interface DescriptionEditorProps {
   fileId: number;
   initialDescription: string | null | undefined;
+  isOwner: boolean;
   onUpdated: () => void;
 }
 
-function DescriptionEditor({ fileId, initialDescription, onUpdated }: DescriptionEditorProps) {
+function DescriptionEditor({ fileId, initialDescription, isOwner, onUpdated }: DescriptionEditorProps) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(initialDescription ?? "");
   const [saving, setSaving] = useState(false);
@@ -190,7 +197,7 @@ function DescriptionEditor({ fileId, initialDescription, onUpdated }: Descriptio
     <div>
       <div className="flex items-center justify-between mb-3">
         <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Description</p>
-        {!editing && (
+        {isOwner && !editing && (
           <button
             onClick={() => setEditing(true)}
             className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
@@ -224,7 +231,7 @@ function DescriptionEditor({ fileId, initialDescription, onUpdated }: Descriptio
         </div>
       ) : value ? (
         <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{value}</p>
-      ) : (
+      ) : isOwner ? (
         <div className="border border-dashed border-border p-4 flex items-center justify-center">
           <button
             onClick={() => setEditing(true)}
@@ -233,6 +240,8 @@ function DescriptionEditor({ fileId, initialDescription, onUpdated }: Descriptio
             + Add a description
           </button>
         </div>
+      ) : (
+        <p className="text-xs text-muted-foreground italic">No description provided.</p>
       )}
     </div>
   );
@@ -242,10 +251,13 @@ export default function FileDetailPage() {
   const params = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user } = useUser();
   const fileId = Number(params.id);
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 
   const { data: file, isLoading, error, refetch } = useGetFile(fileId);
+
+  const isOwner = !!user && !!file && file.uploadedBy === user.id;
 
   function handleUpdated() {
     refetch();
@@ -360,6 +372,7 @@ export default function FileDetailPage() {
           <DescriptionEditor
             fileId={file.id}
             initialDescription={file.description}
+            isOwner={isOwner}
             onUpdated={handleUpdated}
           />
         </div>
@@ -369,6 +382,7 @@ export default function FileDetailPage() {
           <ImageGallery
             images={images}
             fileId={file.id}
+            isOwner={isOwner}
             onImagesUpdated={handleUpdated}
           />
         </div>
