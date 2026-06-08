@@ -12,15 +12,24 @@ import {
   X,
   FileUp,
   Loader2,
+  Cpu,
+  Pickaxe,
 } from "lucide-react";
 import { formatBytes } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
+type Edition = "java" | "bedrock";
 type FileType = "mod" | "map";
 type UploadState = "idle" | "uploading" | "success" | "error";
 
+// Accept only known Minecraft & archive file types — NOT images/videos/audio
+// This prevents mobile browsers from offering camera/gallery shortcuts
+const ACCEPTED_EXTENSIONS =
+  ".jar,.zip,.mcpack,.mcworld,.mcaddon,.mctemplate,.litemod,.mcfunction,.nbt";
+
 export default function UploadPage() {
   const queryClient = useQueryClient();
+  const [edition, setEdition] = useState<Edition>("java");
   const [fileType, setFileType] = useState<FileType>("mod");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadState, setUploadState] = useState<UploadState>("idle");
@@ -38,19 +47,16 @@ export default function UploadPage() {
     e.preventDefault();
     setIsDragging(true);
   }
-
   function handleDragLeave(e: React.DragEvent) {
     e.preventDefault();
     setIsDragging(false);
   }
-
   function handleDrop(e: React.DragEvent) {
     e.preventDefault();
     setIsDragging(false);
     const file = e.dataTransfer.files[0];
     if (file) handleFile(file);
   }
-
   function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (file) handleFile(file);
@@ -58,7 +64,6 @@ export default function UploadPage() {
 
   async function handleUpload() {
     if (!selectedFile) return;
-
     setUploadState("uploading");
     setErrorMessage("");
 
@@ -66,6 +71,7 @@ export default function UploadPage() {
       const formData = new FormData();
       formData.append("file", selectedFile);
       formData.append("type", fileType);
+      formData.append("edition", edition);
 
       const base = import.meta.env.BASE_URL.replace(/\/$/, "");
       const response = await fetch(`${base}/api/files/upload`, {
@@ -101,69 +107,100 @@ export default function UploadPage() {
   }
 
   return (
-    <div className="p-8 max-w-2xl">
-      <motion.div
-        initial={{ opacity: 0, y: -8 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="mb-8"
-      >
+    <div className="p-6 md:p-8 max-w-2xl">
+      <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
         <h1 className="text-2xl font-bold tracking-tight">Upload File</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Upload a mod or map directly from your device. Files are scanned by VirusTotal for safety.
+          Select an edition, file type, and upload directly from your device.
         </p>
       </motion.div>
 
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
+        transition={{ delay: 0.08 }}
         className="space-y-6"
       >
-        {/* Type selector */}
+        {/* Step 1: Edition */}
         <div>
           <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">
-            File Type
+            1 — Edition
           </p>
           <div className="grid grid-cols-2 gap-3">
-            <button
-              data-testid="button-type-mod"
-              onClick={() => setFileType("mod")}
-              className={cn(
-                "flex items-center gap-3 p-4 border text-left transition-colors",
-                fileType === "mod"
-                  ? "border-primary bg-primary/10 text-foreground"
-                  : "border-border bg-card text-muted-foreground hover:border-primary/50"
-              )}
-            >
-              <Package className={cn("w-5 h-5", fileType === "mod" && "text-primary")} />
-              <div>
-                <p className="font-semibold text-sm">Mod</p>
-                <p className="text-xs opacity-70">.jar, .zip files</p>
-              </div>
-            </button>
-            <button
-              data-testid="button-type-map"
-              onClick={() => setFileType("map")}
-              className={cn(
-                "flex items-center gap-3 p-4 border text-left transition-colors",
-                fileType === "map"
-                  ? "border-primary bg-primary/10 text-foreground"
-                  : "border-border bg-card text-muted-foreground hover:border-primary/50"
-              )}
-            >
-              <Map className={cn("w-5 h-5", fileType === "map" && "text-primary")} />
-              <div>
-                <p className="font-semibold text-sm">Map</p>
-                <p className="text-xs opacity-70">.zip, folder archives</p>
-              </div>
-            </button>
+            {(
+              [
+                {
+                  id: "java" as Edition,
+                  label: "Java Edition",
+                  sub: ".jar, .zip mods",
+                  Icon: Cpu,
+                },
+                {
+                  id: "bedrock" as Edition,
+                  label: "Bedrock Edition",
+                  sub: ".mcpack, .mcworld",
+                  Icon: Pickaxe,
+                },
+              ] as const
+            ).map(({ id, label, sub, Icon }) => (
+              <button
+                key={id}
+                data-testid={`button-edition-${id}`}
+                onClick={() => setEdition(id)}
+                className={cn(
+                  "flex items-center gap-3 p-4 border text-left transition-colors",
+                  edition === id
+                    ? "border-primary bg-primary/10 text-foreground"
+                    : "border-border bg-card text-muted-foreground hover:border-primary/50"
+                )}
+              >
+                <Icon className={cn("w-5 h-5 flex-shrink-0", edition === id && "text-primary")} />
+                <div>
+                  <p className="font-semibold text-sm">{label}</p>
+                  <p className="text-xs opacity-70">{sub}</p>
+                </div>
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Drop zone */}
+        {/* Step 2: Type */}
         <div>
           <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">
-            Select File
+            2 — File Type
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            {(
+              [
+                { id: "mod" as FileType, label: "Mod", sub: "Game modification", Icon: Package },
+                { id: "map" as FileType, label: "Map", sub: "World or adventure map", Icon: Map },
+              ] as const
+            ).map(({ id, label, sub, Icon }) => (
+              <button
+                key={id}
+                data-testid={`button-type-${id}`}
+                onClick={() => setFileType(id)}
+                className={cn(
+                  "flex items-center gap-3 p-4 border text-left transition-colors",
+                  fileType === id
+                    ? "border-primary bg-primary/10 text-foreground"
+                    : "border-border bg-card text-muted-foreground hover:border-primary/50"
+                )}
+              >
+                <Icon className={cn("w-5 h-5 flex-shrink-0", fileType === id && "text-primary")} />
+                <div>
+                  <p className="font-semibold text-sm">{label}</p>
+                  <p className="text-xs opacity-70">{sub}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Step 3: File */}
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">
+            3 — Select File
           </p>
           <div
             data-testid="drop-zone"
@@ -181,9 +218,14 @@ export default function UploadPage() {
                 : "border-border hover:border-primary/50 bg-card"
             )}
           >
+            {/*
+              accept: specific non-image extensions → mobile browsers won't offer camera/gallery
+              No `capture` attribute → prevents forcing camera on mobile
+            */}
             <input
               ref={fileInputRef}
               type="file"
+              accept={ACCEPTED_EXTENSIONS}
               className="hidden"
               onChange={handleInputChange}
               data-testid="input-file"
@@ -203,10 +245,10 @@ export default function UploadPage() {
                   </div>
                   <div>
                     <p className="font-semibold text-sm">
-                      Drop file here or click to browse
+                      Tap to browse files
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Supports .jar, .zip and archive formats · Max 500 MB
+                      .jar · .zip · .mcpack · .mcworld · .mcaddon — Max 500 MB
                     </p>
                   </div>
                 </motion.div>
@@ -229,6 +271,7 @@ export default function UploadPage() {
                     <p
                       className="font-medium text-sm truncate"
                       data-testid="text-selected-filename"
+                      title={selectedFile.name}
                     >
                       {selectedFile.name}
                     </p>
@@ -240,10 +283,7 @@ export default function UploadPage() {
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 flex-shrink-0"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleClearFile();
-                    }}
+                    onClick={(e) => { e.stopPropagation(); handleClearFile(); }}
                     data-testid="button-clear-file"
                   >
                     <X className="w-4 h-4" />
@@ -254,7 +294,7 @@ export default function UploadPage() {
           </div>
         </div>
 
-        {/* Status messages */}
+        {/* Status */}
         <AnimatePresence>
           {uploadState === "success" && (
             <motion.div
@@ -264,7 +304,7 @@ export default function UploadPage() {
               className="flex items-center gap-3 p-3 bg-green-500/10 border border-green-500/30 text-green-400 text-sm"
             >
               <CheckCircle className="w-4 h-4 flex-shrink-0" />
-              <span>File uploaded successfully. Scan pending.</span>
+              <span>Uploaded successfully. Scan pending.</span>
             </motion.div>
           )}
           {uploadState === "error" && (
@@ -280,7 +320,6 @@ export default function UploadPage() {
           )}
         </AnimatePresence>
 
-        {/* Upload button */}
         <Button
           data-testid="button-upload"
           onClick={handleUpload}
@@ -288,20 +327,11 @@ export default function UploadPage() {
           className="w-full h-11"
         >
           {uploadState === "uploading" ? (
-            <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Uploading...
-            </>
+            <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Uploading...</>
           ) : uploadState === "success" ? (
-            <>
-              <CheckCircle className="w-4 h-4 mr-2" />
-              Uploaded
-            </>
+            <><CheckCircle className="w-4 h-4 mr-2" />Uploaded</>
           ) : (
-            <>
-              <Upload className="w-4 h-4 mr-2" />
-              Upload {fileType === "mod" ? "Mod" : "Map"}
-            </>
+            <><Upload className="w-4 h-4 mr-2" />Upload {fileType === "mod" ? "Mod" : "Map"}</>
           )}
         </Button>
       </motion.div>

@@ -10,6 +10,10 @@ export interface FileStats {
   totalFiles: number;
   totalMods: number;
   totalMaps: number;
+  javaMods: number;
+  javaMaps: number;
+  bedrockMods: number;
+  bedrockMaps: number;
   cleanFiles: number;
   maliciousFiles: number;
   pendingFiles: number;

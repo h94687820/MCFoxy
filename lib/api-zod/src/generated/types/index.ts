@@ -8,6 +8,7 @@
 
 export * from './fileStats';
 export * from './healthStatus';
+export * from './listFilesEdition';
 export * from './listFilesParams';
 export * from './listFilesScanStatus';
 export * from './listFilesType';
@@ -16,5 +17,6 @@ export * from './settingsInput';
 export * from './settingsInputTheme';
 export * from './settingsTheme';
 export * from './uploadedFile';
+export * from './uploadedFileEdition';
 export * from './uploadedFileScanStatus';
 export * from './uploadedFileType';

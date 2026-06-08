@@ -9,6 +9,14 @@ export interface HealthStatus {
   status: string;
 }
 
+export type UploadedFileEdition = typeof UploadedFileEdition[keyof typeof UploadedFileEdition];
+
+
+export const UploadedFileEdition = {
+  java: 'java',
+  bedrock: 'bedrock',
+} as const;
+
 export type UploadedFileType = typeof UploadedFileType[keyof typeof UploadedFileType];
 
 
@@ -32,6 +40,7 @@ export interface UploadedFile {
   id: number;
   name: string;
   originalName: string;
+  edition: UploadedFileEdition;
   type: UploadedFileType;
   size: number;
   /** @nullable */
@@ -52,6 +61,10 @@ export interface FileStats {
   totalFiles: number;
   totalMods: number;
   totalMaps: number;
+  javaMods: number;
+  javaMaps: number;
+  bedrockMods: number;
+  bedrockMaps: number;
   cleanFiles: number;
   maliciousFiles: number;
   pendingFiles: number;
@@ -96,9 +109,18 @@ export interface SettingsInput {
 }
 
 export type ListFilesParams = {
+edition?: ListFilesEdition;
 type?: ListFilesType;
 scanStatus?: ListFilesScanStatus;
 };
+
+export type ListFilesEdition = typeof ListFilesEdition[keyof typeof ListFilesEdition];
+
+
+export const ListFilesEdition = {
+  java: 'java',
+  bedrock: 'bedrock',
+} as const;
 
 export type ListFilesType = typeof ListFilesType[keyof typeof ListFilesType];
 

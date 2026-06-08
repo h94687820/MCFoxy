@@ -5,6 +5,7 @@
  * Minecraft Mods & Maps Hub API
  * OpenAPI spec version: 0.1.0
  */
+import type { UploadedFileEdition } from './uploadedFileEdition';
 import type { UploadedFileScanStatus } from './uploadedFileScanStatus';
 import type { UploadedFileType } from './uploadedFileType';
 
@@ -12,6 +13,7 @@ export interface UploadedFile {
   id: number;
   name: string;
   originalName: string;
+  edition: UploadedFileEdition;
   type: UploadedFileType;
   size: number;
   /** @nullable */

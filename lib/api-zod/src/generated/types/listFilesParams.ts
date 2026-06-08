@@ -5,10 +5,12 @@
  * Minecraft Mods & Maps Hub API
  * OpenAPI spec version: 0.1.0
  */
+import type { ListFilesEdition } from './listFilesEdition';
 import type { ListFilesScanStatus } from './listFilesScanStatus';
 import type { ListFilesType } from './listFilesType';
 
 export type ListFilesParams = {
+edition?: ListFilesEdition;
 type?: ListFilesType;
 scanStatus?: ListFilesScanStatus;
 };

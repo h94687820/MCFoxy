@@ -21,7 +21,6 @@ paths:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -36,6 +35,12 @@ paths:
       tags: [files]
       summary: List all uploaded files
       parameters:
+        - name: edition
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [java, bedrock]
         - name: type
           in: query
           required: false
@@ -177,6 +182,9 @@ components:
           type: string
         originalName:
           type: string
+        edition:
+          type: string
+          enum: [java, bedrock]
         type:
           type: string
           enum: [mod, map]
@@ -201,6 +209,7 @@ components:
         - id
         - name
         - originalName
+        - edition
         - type
         - size
         - uploadedAt
@@ -215,6 +224,14 @@ components:
           type: integer
         totalMaps:
           type: integer
+        javaMods:
+          type: integer
+        javaMaps:
+          type: integer
+        bedrockMods:
+          type: integer
+        bedrockMaps:
+          type: integer
         cleanFiles:
           type: integer
         maliciousFiles:
@@ -227,6 +244,10 @@ components:
         - totalFiles
         - totalMods
         - totalMaps
+        - javaMods
+        - javaMaps
+        - bedrockMods
+        - bedrockMaps
         - cleanFiles
         - maliciousFiles
         - pendingFiles

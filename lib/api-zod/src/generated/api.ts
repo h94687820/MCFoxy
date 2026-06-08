@@ -9,7 +9,6 @@ import * as zod from 'zod';
 
 
 /**
- * Returns server health status
  * @summary Health check
  */
 export const HealthCheckResponse = zod.object({
@@ -21,6 +20,7 @@ export const HealthCheckResponse = zod.object({
  * @summary List all uploaded files
  */
 export const ListFilesQueryParams = zod.object({
+  "edition": zod.enum(['java', 'bedrock']).optional(),
   "type": zod.enum(['mod', 'map']).optional(),
   "scanStatus": zod.enum(['pending', 'scanning', 'clean', 'malicious', 'error']).optional()
 })
@@ -29,6 +29,7 @@ export const ListFilesResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "originalName": zod.string(),
+  "edition": zod.enum(['java', 'bedrock']),
   "type": zod.enum(['mod', 'map']),
   "size": zod.number(),
   "mimeType": zod.string().nullish(),
@@ -53,6 +54,7 @@ export const GetFileResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "originalName": zod.string(),
+  "edition": zod.enum(['java', 'bedrock']),
   "type": zod.enum(['mod', 'map']),
   "size": zod.number(),
   "mimeType": zod.string().nullish(),
@@ -84,6 +86,7 @@ export const ScanFileResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "originalName": zod.string(),
+  "edition": zod.enum(['java', 'bedrock']),
   "type": zod.enum(['mod', 'map']),
   "size": zod.number(),
   "mimeType": zod.string().nullish(),
@@ -103,6 +106,10 @@ export const GetFileStatsResponse = zod.object({
   "totalFiles": zod.number(),
   "totalMods": zod.number(),
   "totalMaps": zod.number(),
+  "javaMods": zod.number(),
+  "javaMaps": zod.number(),
+  "bedrockMods": zod.number(),
+  "bedrockMaps": zod.number(),
   "cleanFiles": zod.number(),
   "maliciousFiles": zod.number(),
   "pendingFiles": zod.number(),

@@ -6,6 +6,7 @@ export const filesTable = pgTable("files", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   originalName: text("original_name").notNull(),
+  edition: text("edition").notNull().default("java"), // "java" | "bedrock"
   type: text("type").notNull(), // "mod" | "map"
   size: integer("size").notNull(),
   mimeType: text("mime_type"),
