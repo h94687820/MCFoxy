@@ -17,6 +17,85 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
+ * @summary Get the currently authenticated user
+ */
+export const GetCurrentAuthUserHeader = zod.object({
+  "Authorization": zod.string().optional().describe('Opaque session token — `Bearer <sid>`.')
+})
+
+export const GetCurrentAuthUserResponse = zod.object({
+  "user": zod.union([zod.object({
+  "id": zod.string(),
+  "email": zod.string().email().nullable(),
+  "firstName": zod.string().nullable(),
+  "lastName": zod.string().nullable(),
+  "profileImageUrl": zod.string().nullable()
+}),zod.null()])
+})
+
+
+/**
+ * @summary Start the browser OIDC login flow
+ */
+export const BeginBrowserLoginQueryParams = zod.object({
+  "returnTo": zod.coerce.string().optional()
+})
+
+
+/**
+ * @summary Complete the browser OIDC login flow
+ */
+export const HandleBrowserLoginCallbackQueryParams = zod.object({
+  "code": zod.coerce.string().optional(),
+  "state": zod.coerce.string().optional(),
+  "iss": zod.coerce.string().url().optional()
+})
+
+
+/**
+ * @summary Clear the session and begin OIDC logout
+ */
+export const LogoutBrowserSessionHeader = zod.object({
+  "Authorization": zod.string().optional().describe('Opaque session token — `Bearer <sid>`.')
+})
+
+
+/**
+ * @summary Exchange a mobile OIDC code for a session token
+ */
+
+
+
+
+
+
+
+export const ExchangeMobileAuthorizationCodeBody = zod.object({
+  "code": zod.string().min(1),
+  "code_verifier": zod.string().min(1),
+  "redirect_uri": zod.string().url().min(1),
+  "state": zod.string().min(1),
+  "nonce": zod.string().min(1).optional()
+})
+
+export const ExchangeMobileAuthorizationCodeResponse = zod.object({
+  "token": zod.string()
+})
+
+
+/**
+ * @summary Delete a mobile session token
+ */
+export const LogoutMobileSessionHeader = zod.object({
+  "Authorization": zod.string().optional().describe('Opaque session token — `Bearer <sid>`.')
+})
+
+export const LogoutMobileSessionResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
  * @summary List all uploaded files
  */
 export const ListFilesQueryParams = zod.object({
@@ -68,7 +147,7 @@ export const GetFileResponse = zod.object({
 
 
 /**
- * @summary Delete a file
+ * @summary Delete a file (admin only)
  */
 export const DeleteFileParams = zod.object({
   "id": zod.coerce.number()
@@ -76,7 +155,7 @@ export const DeleteFileParams = zod.object({
 
 
 /**
- * @summary Trigger VirusTotal scan for a file
+ * @summary Trigger VirusTotal scan (admin only)
  */
 export const ScanFileParams = zod.object({
   "id": zod.coerce.number()
@@ -96,6 +175,14 @@ export const ScanFileResponse = zod.object({
   "scanEngine": zod.string().nullish(),
   "virusTotalLink": zod.string().nullish(),
   "detectionRatio": zod.string().nullish()
+})
+
+
+/**
+ * @summary Download a file
+ */
+export const DownloadFileParams = zod.object({
+  "id": zod.coerce.number()
 })
 
 
@@ -129,7 +216,7 @@ export const GetSettingsResponse = zod.object({
 
 
 /**
- * @summary Update settings
+ * @summary Update settings (admin only)
  */
 export const UpdateSettingsBody = zod.object({
   "theme": zod.enum(['creeper', 'nether', 'ocean', 'end', 'sky', 'default']).optional(),

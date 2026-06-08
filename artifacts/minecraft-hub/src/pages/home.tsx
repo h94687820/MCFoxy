@@ -23,9 +23,11 @@ import {
   FileX,
   Cpu,
   Pickaxe,
+  Download,
 } from "lucide-react";
 import { formatBytes } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useAdminAuth } from "@/hooks/use-auth-context";
 import type { UploadedFile } from "@workspace/api-client-react";
 
 const container = {
@@ -65,6 +67,7 @@ function StatCard({ icon: Icon, label, value, color }: { icon: React.ElementType
 }
 
 function FileRow({ file }: { file: UploadedFile }) {
+  const { isAdmin } = useAdminAuth();
   const queryClient = useQueryClient();
   const deleteMutation = useDeleteFile();
   const scanMutation = useScanFile();
@@ -84,8 +87,9 @@ function FileRow({ file }: { file: UploadedFile }) {
     });
   }
 
-  const canScan = file.scanStatus === "pending" || file.scanStatus === "error";
+  const canScan = isAdmin && (file.scanStatus === "pending" || file.scanStatus === "error");
   const date = new Date(file.uploadedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 
   return (
     <motion.div
@@ -113,14 +117,25 @@ function FileRow({ file }: { file: UploadedFile }) {
           <p className="text-xs text-red-400 mt-1">{file.scanDetails}</p>
         )}
       </div>
+
       <div className="flex items-center gap-1 flex-shrink-0">
+        {/* Always visible: VirusTotal report link */}
         {file.virusTotalLink && (
           <a href={file.virusTotalLink} target="_blank" rel="noreferrer" data-testid={`link-vt-${file.id}`}>
-            <Button variant="ghost" size="icon" className="h-7 w-7">
+            <Button variant="ghost" size="icon" className="h-7 w-7" title="View VirusTotal report">
               <ExternalLink className="w-3.5 h-3.5" />
             </Button>
           </a>
         )}
+
+        {/* Always visible: Download */}
+        <a href={`${base}/api/files/${file.id}/download`} download={file.originalName} data-testid={`link-download-${file.id}`}>
+          <Button variant="ghost" size="icon" className="h-7 w-7" title="Download file">
+            <Download className="w-3.5 h-3.5" />
+          </Button>
+        </a>
+
+        {/* Admin only: Scan */}
         {canScan && (
           <Button
             variant="ghost"
@@ -134,46 +149,37 @@ function FileRow({ file }: { file: UploadedFile }) {
             <ScanSearch className="w-3.5 h-3.5" />
           </Button>
         )}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7 hover:text-destructive"
-          onClick={handleDelete}
-          disabled={deleteMutation.isPending}
-          data-testid={`button-delete-${file.id}`}
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </Button>
+
+        {/* Admin only: Delete */}
+        {isAdmin && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 hover:text-destructive"
+            onClick={handleDelete}
+            disabled={deleteMutation.isPending}
+            data-testid={`button-delete-${file.id}`}
+            title="Delete file"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </Button>
+        )}
       </div>
     </motion.div>
   );
 }
 
-function SubSection({
-  title,
-  icon: Icon,
-  files,
-  loading,
-}: {
-  title: string;
-  icon: React.ElementType;
-  files: UploadedFile[];
-  loading: boolean;
-}) {
+function SubSection({ title, icon: Icon, files, loading }: { title: string; icon: React.ElementType; files: UploadedFile[]; loading: boolean }) {
   return (
     <div>
       <div className="flex items-center gap-2 mb-2">
         <Icon className="w-3.5 h-3.5 text-primary/70" />
-        <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-          {title}
-        </h3>
+        <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{title}</h3>
         <span className="ml-auto text-xs font-mono text-muted-foreground">{loading ? "..." : files.length}</span>
       </div>
 
       {loading ? (
-        <div className="space-y-2">
-          {[1, 2].map((i) => <Skeleton key={i} className="h-14 w-full" />)}
-        </div>
+        <div className="space-y-2">{[1, 2].map((i) => <Skeleton key={i} className="h-14 w-full" />)}</div>
       ) : files.length === 0 ? (
         <div className="border border-dashed border-border p-5 flex items-center justify-center gap-2 text-xs text-muted-foreground">
           <FileX className="w-3.5 h-3.5" />
@@ -188,32 +194,18 @@ function SubSection({
   );
 }
 
-function EditionSection({
-  edition,
-  icon: EditionIcon,
-  color,
-  files,
-  loading,
-}: {
-  edition: string;
-  icon: React.ElementType;
-  color: string;
-  files: UploadedFile[];
-  loading: boolean;
-}) {
+function EditionSection({ edition, icon: EditionIcon, color, files, loading }: { edition: string; icon: React.ElementType; color: string; files: UploadedFile[]; loading: boolean }) {
   const mods = files.filter((f) => f.type === "mod");
   const maps = files.filter((f) => f.type === "map");
   const label = edition === "java" ? "Java Edition" : "Bedrock Edition";
 
   return (
     <motion.div variants={item} className="border border-border">
-      {/* Edition header */}
       <div className={cn("flex items-center gap-3 px-5 py-3 border-b border-border", color)}>
         <EditionIcon className="w-4 h-4" />
         <h2 className="font-bold text-sm tracking-tight">{label}</h2>
         <span className="ml-auto text-xs font-mono opacity-70">{loading ? "..." : files.length} files</span>
       </div>
-
       <div className="p-5 space-y-5">
         <SubSection title="Mods" icon={Package} files={mods} loading={loading} />
         <SubSection title="Maps" icon={Map} files={maps} loading={loading} />
@@ -236,13 +228,7 @@ export default function HomePage() {
         <p className="text-sm text-muted-foreground mt-1">Manage your Minecraft mods and maps</p>
       </motion.div>
 
-      {/* Stats row */}
-      <motion.div
-        variants={container}
-        initial="hidden"
-        animate="show"
-        className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8"
-      >
+      <motion.div variants={container} initial="hidden" animate="show" className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
         {statsLoading ? (
           [1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-16 w-full" />)
         ) : (
@@ -255,42 +241,18 @@ export default function HomePage() {
         )}
       </motion.div>
 
-      {/* Storage + pending */}
       {stats && stats.totalSizeBytes > 0 && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="mb-6 flex flex-wrap items-center gap-4 text-xs text-muted-foreground font-mono"
-        >
-          <span className="flex items-center gap-1.5">
-            <HardDrive className="w-3.5 h-3.5" />
-            {formatBytes(stats.totalSizeBytes)} stored
-          </span>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-6 flex flex-wrap items-center gap-4 text-xs text-muted-foreground font-mono">
+          <span className="flex items-center gap-1.5"><HardDrive className="w-3.5 h-3.5" />{formatBytes(stats.totalSizeBytes)} stored</span>
           {stats.pendingFiles > 0 && (
-            <span className="flex items-center gap-1.5 text-yellow-400">
-              <Clock className="w-3.5 h-3.5" />
-              {stats.pendingFiles} awaiting scan
-            </span>
+            <span className="flex items-center gap-1.5 text-yellow-400"><Clock className="w-3.5 h-3.5" />{stats.pendingFiles} awaiting scan</span>
           )}
         </motion.div>
       )}
 
-      {/* Edition sections */}
       <motion.div variants={container} initial="hidden" animate="show" className="space-y-4">
-        <EditionSection
-          edition="java"
-          icon={Cpu}
-          color="bg-primary/5"
-          files={javaFiles}
-          loading={filesLoading}
-        />
-        <EditionSection
-          edition="bedrock"
-          icon={Pickaxe}
-          color="bg-primary/5"
-          files={bedrockFiles}
-          loading={filesLoading}
-        />
+        <EditionSection edition="java" icon={Cpu} color="bg-primary/5" files={javaFiles} loading={filesLoading} />
+        <EditionSection edition="bedrock" icon={Pickaxe} color="bg-primary/5" files={bedrockFiles} loading={filesLoading} />
       </motion.div>
     </div>
   );

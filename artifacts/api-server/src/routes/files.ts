@@ -32,11 +32,26 @@ const upload = multer({
   limits: { fileSize: 500 * 1024 * 1024 },
 });
 
+// Allowed extensions per edition (server-side enforcement)
+const JAVA_EXTENSIONS = new Set([".jar", ".zip"]);
+const BEDROCK_EXTENSIONS = new Set([".mcpack", ".mcworld", ".mcaddon", ".mctemplate"]);
+
+function getAllowedExtensions(edition: string): Set<string> {
+  return edition === "java" ? JAVA_EXTENSIONS : BEDROCK_EXTENSIONS;
+}
+
+function requireAdmin(req: Parameters<Router>[0], res: Parameters<Router>[1]): boolean {
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ error: "Authentication required" });
+    return false;
+  }
+  return true;
+}
+
+// ── Public: list files ──────────────────────────────────────────────────────
 router.get("/files", async (req, res) => {
   const parseResult = ListFilesQueryParams.safeParse(req.query);
-  if (!parseResult.success) {
-    return res.status(400).json({ error: "Invalid query params" });
-  }
+  if (!parseResult.success) return res.status(400).json({ error: "Invalid query params" });
 
   const { edition, type, scanStatus } = parseResult.data;
   const conditions = [];
@@ -51,7 +66,7 @@ router.get("/files", async (req, res) => {
   return res.json(files.map((f) => ({ ...f, uploadedAt: f.uploadedAt.toISOString() })));
 });
 
-// stats must be before /:id
+// ── Public: stats — MUST be before /:id ─────────────────────────────────────
 router.get("/files/stats", async (_req, res) => {
   const rows = await db
     .select({ edition: filesTable.edition, type: filesTable.type, scanStatus: filesTable.scanStatus, size: filesTable.size })
@@ -72,10 +87,14 @@ router.get("/files/stats", async (_req, res) => {
   });
 });
 
+// ── Admin: upload ─────────────────────────────────────────────────────────────
 router.post("/files/upload", upload.single("file"), async (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: "No file uploaded" });
+  if (!requireAdmin(req, res)) {
+    if (req.file?.path) fs.unlinkSync(req.file.path);
+    return;
   }
+
+  if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
   const { type, edition } = req.body as { type?: string; edition?: string };
 
@@ -86,6 +105,16 @@ router.post("/files/upload", upload.single("file"), async (req, res) => {
   if (!edition || !["java", "bedrock"].includes(edition)) {
     fs.unlinkSync(req.file.path);
     return res.status(400).json({ error: "edition must be 'java' or 'bedrock'" });
+  }
+
+  // Server-side edition/extension validation
+  const ext = path.extname(req.file.originalname).toLowerCase();
+  const allowed = getAllowedExtensions(edition);
+  if (!allowed.has(ext)) {
+    fs.unlinkSync(req.file.path);
+    return res.status(400).json({
+      error: `${edition === "java" ? "Java" : "Bedrock"} Edition does not accept ${ext || "this"} files. Allowed: ${[...allowed].join(", ")}`,
+    });
   }
 
   const [inserted] = await db
@@ -105,6 +134,25 @@ router.post("/files/upload", upload.single("file"), async (req, res) => {
   return res.status(201).json({ ...inserted, uploadedAt: inserted.uploadedAt.toISOString() });
 });
 
+// ── Public: download ──────────────────────────────────────────────────────────
+router.get("/files/:id/download", async (req, res) => {
+  const parseResult = GetFileParams.safeParse({ id: Number(req.params.id) });
+  if (!parseResult.success) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const [file] = await db.select().from(filesTable).where(eq(filesTable.id, parseResult.data.id));
+  if (!file) { res.status(404).json({ error: "Not found" }); return; }
+
+  if (!fs.existsSync(file.filePath)) { res.status(404).json({ error: "File not found on disk" }); return; }
+
+  res.setHeader("Content-Disposition", `attachment; filename="${encodeURIComponent(file.originalName)}"`);
+  res.setHeader("Content-Type", "application/octet-stream");
+  res.setHeader("Content-Length", file.size);
+
+  const stream = fs.createReadStream(file.filePath);
+  stream.pipe(res);
+});
+
+// ── Public: get file ──────────────────────────────────────────────────────────
 router.get("/files/:id", async (req, res) => {
   const parseResult = GetFileParams.safeParse({ id: Number(req.params.id) });
   if (!parseResult.success) return res.status(400).json({ error: "Invalid id" });
@@ -115,7 +163,10 @@ router.get("/files/:id", async (req, res) => {
   return res.json({ ...file, uploadedAt: file.uploadedAt.toISOString() });
 });
 
+// ── Admin: delete file ────────────────────────────────────────────────────────
 router.delete("/files/:id", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
   const parseResult = DeleteFileParams.safeParse({ id: Number(req.params.id) });
   if (!parseResult.success) return res.status(400).json({ error: "Invalid id" });
 
@@ -128,7 +179,10 @@ router.delete("/files/:id", async (req, res) => {
   return res.status(204).send();
 });
 
+// ── Admin: scan file ──────────────────────────────────────────────────────────
 router.post("/files/:id/scan", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
   const parseResult = ScanFileParams.safeParse({ id: Number(req.params.id) });
   if (!parseResult.success) return res.status(400).json({ error: "Invalid id" });
 
@@ -136,7 +190,6 @@ router.post("/files/:id/scan", async (req, res) => {
   if (!file) return res.status(404).json({ error: "Not found" });
 
   const apiKey = process.env.VIRUSTOTAL_API_KEY;
-
   if (!apiKey) {
     const [updated] = await db
       .update(filesTable)
@@ -179,9 +232,7 @@ async function performScan(fileId: number, filePath: string, apiKey: string) {
     body: formData,
   });
 
-  if (!uploadResp.ok) {
-    throw new Error(`VT upload failed: ${uploadResp.status}`);
-  }
+  if (!uploadResp.ok) throw new Error(`VT upload failed: ${uploadResp.status}`);
 
   const uploadData = (await uploadResp.json()) as { data: { id: string } };
   const analysisId = uploadData.data.id;
@@ -218,8 +269,7 @@ async function performScan(fileId: number, filePath: string, apiKey: string) {
         detectionRatio: `${malicious}/${total}`,
         virusTotalLink: `https://www.virustotal.com/gui/file-analysis/${analysisId}`,
         scanEngine: "VirusTotal",
-        scanDetails:
-          malicious > 0 ? `${malicious} engines flagged this file` : "No threats detected",
+        scanDetails: malicious > 0 ? `${malicious} engines flagged this file` : "No threats detected",
       })
       .where(eq(filesTable.id, fileId));
     return;

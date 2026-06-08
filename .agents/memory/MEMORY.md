@@ -1,0 +1,1 @@
+- [Replit Auth lib tsconfig](replit-auth-lib.md) — composite lib needs specific fixes; import.meta.env and workspace dep pitfalls documented
