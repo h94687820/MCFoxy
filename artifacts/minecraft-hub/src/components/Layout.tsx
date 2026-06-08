@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { LayoutGrid, Upload, Settings, Shield, Box, Download, LogIn, LogOut, User, X } from "lucide-react";
+import { LayoutGrid, Upload, Settings, Shield, Download, LogIn, LogOut, User, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePWAInstall } from "@/hooks/use-pwa-install";
 import { useClerk, useUser } from "@clerk/react";
@@ -46,9 +46,9 @@ export default function Layout({ children }: LayoutProps) {
       {/* ── Install Banner (mobile top) ─────────────────────────────────────── */}
       {showInstallBanner && (
         <div className="md:hidden fixed top-0 left-0 right-0 z-50 bg-primary text-primary-foreground flex items-center gap-3 px-4 py-3 shadow-lg">
-          <Box className="w-5 h-5 flex-shrink-0" />
+          <img src="/logo.svg" alt="iFoxyMC" className="w-5 h-5 flex-shrink-0" />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold leading-none">ModVault</p>
+            <p className="text-sm font-semibold leading-none">iFoxyMC</p>
             <p className="text-xs opacity-80 mt-0.5">{t.nav.install}</p>
           </div>
           <button
@@ -68,11 +68,11 @@ export default function Layout({ children }: LayoutProps) {
         {/* Logo */}
         <div className="p-6 border-b border-sidebar-border">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-primary flex items-center justify-center">
-              <Box className="w-5 h-5 text-primary-foreground" />
+            <div className="w-9 h-9 flex items-center justify-center overflow-hidden">
+              <img src="/logo.svg" alt="iFoxyMC" className="w-9 h-9" />
             </div>
             <div>
-              <p className="font-bold text-sidebar-foreground leading-none tracking-tight">ModVault</p>
+              <p className="font-bold text-sidebar-foreground leading-none tracking-tight">iFoxyMC</p>
               <p className="text-xs text-muted-foreground mt-0.5 font-mono">Mods &amp; Maps Hub</p>
             </div>
           </div>
@@ -156,6 +156,9 @@ export default function Layout({ children }: LayoutProps) {
               target="_blank"
               rel="noopener noreferrer"
               className="font-semibold text-primary hover:underline"
+              onError={(e) => {
+                (e.currentTarget as HTMLAnchorElement).href = "https://youtube.com/@iFoxyMC";
+              }}
             >
               iFoxyMC
             </a>
@@ -169,10 +172,10 @@ export default function Layout({ children }: LayoutProps) {
         showInstallBanner ? "mt-14 h-14" : "h-14"
       )}>
         <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 bg-primary flex items-center justify-center">
-            <Box className="w-4 h-4 text-primary-foreground" />
+          <div className="w-7 h-7 flex items-center justify-center overflow-hidden">
+            <img src="/logo.svg" alt="iFoxyMC" className="w-7 h-7" />
           </div>
-          <span className="font-bold text-sm tracking-tight">ModVault</span>
+          <span className="font-bold text-sm tracking-tight">iFoxyMC</span>
         </div>
         {isLoaded && (
           user ? (
