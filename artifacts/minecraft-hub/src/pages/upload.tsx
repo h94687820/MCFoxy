@@ -15,10 +15,10 @@ import {
   Cpu,
   Pickaxe,
   ImagePlus,
-  Image,
 } from "lucide-react";
 import { formatBytes } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/contexts/language-context";
 
 type Edition = "java" | "bedrock";
 type FileType = "mod" | "map";
@@ -36,6 +36,7 @@ const EDITION_HINT: Record<Edition, string> = {
 
 export default function UploadPage() {
   const queryClient = useQueryClient();
+  const { t } = useLanguage();
   const [edition, setEdition] = useState<Edition>("java");
   const [fileType, setFileType] = useState<FileType>("mod");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -131,23 +132,30 @@ export default function UploadPage() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
+  const uploadBtnLabel = () => {
+    if (uploadState === "uploading") return <><Loader2 className="w-4 h-4 mr-2 animate-spin" />{t.upload.uploadingButton}</>;
+    if (uploadState === "success") return <><CheckCircle className="w-4 h-4 mr-2" />{t.upload.uploadedButton}</>;
+    if (selectedImages.length > 0) {
+      return <><Upload className="w-4 h-4 mr-2" />{t.upload.withImages} {selectedImages.length} {selectedImages.length === 1 ? t.upload.image : t.upload.images}</>;
+    }
+    return <><Upload className="w-4 h-4 mr-2" />{t.upload.uploadButton} {fileType === "mod" ? t.upload.mod : t.upload.map}</>;
+  };
+
   return (
     <div className="p-6 md:p-8 max-w-2xl">
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-        <h1 className="text-2xl font-bold tracking-tight">Upload File</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Select an edition and file type, then upload directly from your device.
-        </p>
+        <h1 className="text-2xl font-bold tracking-tight">{t.upload.title}</h1>
+        <p className="text-sm text-muted-foreground mt-1">{t.upload.subtitle}</p>
       </motion.div>
 
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }} className="space-y-6">
         {/* Step 1: Edition */}
         <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">1 — Edition</p>
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">{t.upload.stepEdition}</p>
           <div className="grid grid-cols-2 gap-3">
             {([
-              { id: "java" as Edition, label: "Java Edition", sub: ".jar, .zip", Icon: Cpu },
-              { id: "bedrock" as Edition, label: "Bedrock Edition", sub: ".mcpack, .mcworld", Icon: Pickaxe },
+              { id: "java" as Edition, label: t.upload.javaEdition, sub: ".jar, .zip", Icon: Cpu },
+              { id: "bedrock" as Edition, label: t.upload.bedrockEdition, sub: ".mcpack, .mcworld", Icon: Pickaxe },
             ] as const).map(({ id, label, sub, Icon }) => (
               <button
                 key={id}
@@ -167,11 +175,11 @@ export default function UploadPage() {
 
         {/* Step 2: Type */}
         <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">2 — File Type</p>
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">{t.upload.stepType}</p>
           <div className="grid grid-cols-2 gap-3">
             {([
-              { id: "mod" as FileType, label: "Mod", sub: "Game modification", Icon: Package },
-              { id: "map" as FileType, label: "Map", sub: "World or adventure map", Icon: Map },
+              { id: "mod" as FileType, label: t.upload.mod, sub: t.upload.modSub, Icon: Package },
+              { id: "map" as FileType, label: t.upload.map, sub: t.upload.mapSub, Icon: Map },
             ] as const).map(({ id, label, sub, Icon }) => (
               <button
                 key={id}
@@ -191,7 +199,7 @@ export default function UploadPage() {
 
         {/* Step 3: File */}
         <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">3 — Select File</p>
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">{t.upload.stepFile}</p>
           <div
             data-testid="drop-zone"
             onDragOver={handleDragOver}
@@ -220,8 +228,8 @@ export default function UploadPage() {
                     <FileUp className="w-6 h-6 text-primary/60" />
                   </div>
                   <div>
-                    <p className="font-semibold text-sm">Tap to browse files</p>
-                    <p className="text-xs text-muted-foreground mt-1">{EDITION_HINT[edition]} · Max 500 MB</p>
+                    <p className="font-semibold text-sm">{t.upload.dropHint}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{EDITION_HINT[edition]} · {t.upload.maxSize}</p>
                   </div>
                 </motion.div>
               ) : (
@@ -247,11 +255,13 @@ export default function UploadPage() {
 
         {/* Step 4: Description */}
         <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">4 — Description <span className="normal-case font-normal">(optional)</span></p>
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">
+            {t.upload.stepDescription} <span className="normal-case font-normal">{t.upload.stepDescriptionOptional}</span>
+          </p>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Describe what this mod or map does..."
+            placeholder={t.upload.descriptionPlaceholder}
             rows={3}
             className="w-full bg-card border border-border text-sm text-foreground placeholder:text-muted-foreground p-3 resize-none focus:outline-none focus:border-primary/60 transition-colors"
           />
@@ -259,7 +269,9 @@ export default function UploadPage() {
 
         {/* Step 5: Images */}
         <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">5 — Screenshots / Images <span className="normal-case font-normal">(optional, up to 10)</span></p>
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">
+            {t.upload.stepImages} <span className="normal-case font-normal">{t.upload.stepImagesOptional}</span>
+          </p>
 
           {selectedImages.length > 0 && (
             <div className="grid grid-cols-3 gap-2 mb-3">
@@ -287,7 +299,7 @@ export default function UploadPage() {
               className="flex items-center gap-2 px-4 py-2.5 border border-dashed border-border hover:border-primary/50 text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
               <ImagePlus className="w-4 h-4" />
-              Add image{selectedImages.length > 0 ? "s" : ""}
+              {t.upload.addImages}
               <span className="text-xs font-mono">({selectedImages.length}/10)</span>
             </button>
           )}
@@ -307,7 +319,7 @@ export default function UploadPage() {
           {uploadState === "success" && (
             <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="flex items-center gap-3 p-3 bg-green-500/10 border border-green-500/30 text-green-400 text-sm">
               <CheckCircle className="w-4 h-4 flex-shrink-0" />
-              <span>Uploaded successfully. File is being scanned in the background.</span>
+              <span>{t.upload.uploadSuccess}</span>
             </motion.div>
           )}
           {uploadState === "error" && (
@@ -324,9 +336,7 @@ export default function UploadPage() {
           disabled={!selectedFile || uploadState === "uploading" || uploadState === "success"}
           className="w-full h-11"
         >
-          {uploadState === "uploading" ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Uploading...</>
-            : uploadState === "success" ? <><CheckCircle className="w-4 h-4 mr-2" />Uploaded</>
-            : <><Upload className="w-4 h-4 mr-2" />{selectedImages.length > 0 ? "Upload with " + selectedImages.length + " image" + (selectedImages.length > 1 ? "s" : "") : `Upload ${fileType === "mod" ? "Mod" : "Map"}`}</>}
+          {uploadBtnLabel()}
         </Button>
       </motion.div>
     </div>

@@ -3,12 +3,7 @@ import { LayoutGrid, Upload, Settings, Shield, Box, Download, LogIn, LogOut, Use
 import { cn } from "@/lib/utils";
 import { usePWAInstall } from "@/hooks/use-pwa-install";
 import { useClerk, useUser } from "@clerk/react";
-
-const navItems = [
-  { href: "/", label: "Dashboard", icon: LayoutGrid },
-  { href: "/upload", label: "Upload", icon: Upload },
-  { href: "/settings", label: "Settings", icon: Settings },
-];
+import { useLanguage } from "@/contexts/language-context";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -21,6 +16,13 @@ export default function Layout({ children }: LayoutProps) {
   const { canInstall, install } = usePWAInstall();
   const { signOut } = useClerk();
   const { user, isLoaded } = useUser();
+  const { t } = useLanguage();
+
+  const navItems = [
+    { href: "/", label: t.nav.dashboard, icon: LayoutGrid },
+    { href: "/upload", label: t.nav.upload, icon: Upload },
+    { href: "/settings", label: t.nav.settings, icon: Settings },
+  ];
 
   return (
     <div className="flex min-h-screen">
@@ -93,7 +95,7 @@ export default function Layout({ children }: LayoutProps) {
                   className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-muted-foreground border border-sidebar-border hover:border-primary/60 hover:text-primary transition-colors"
                 >
                   <LogOut className="w-3.5 h-3.5 flex-shrink-0" />
-                  Sign out
+                  {t.nav.signOut}
                 </button>
               </div>
             ) : (
@@ -102,7 +104,7 @@ export default function Layout({ children }: LayoutProps) {
                 className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-muted-foreground border border-sidebar-border hover:border-primary/60 hover:text-primary transition-colors"
               >
                 <LogIn className="w-3.5 h-3.5 flex-shrink-0" />
-                Sign in
+                {t.nav.signIn}
               </Link>
             )
           )}
@@ -113,12 +115,12 @@ export default function Layout({ children }: LayoutProps) {
               className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-sidebar-foreground border border-sidebar-border hover:border-primary/60 hover:text-primary transition-colors"
             >
               <Download className="w-3.5 h-3.5 flex-shrink-0" />
-              Install App
+              {t.nav.install}
             </button>
           )}
           <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono">
             <Shield className="w-3.5 h-3.5" />
-            <span>VirusTotal Protected</span>
+            <span>{t.nav.virusTotalProtected}</span>
           </div>
         </div>
       </aside>

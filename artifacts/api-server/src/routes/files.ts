@@ -185,15 +185,23 @@ router.post(
     if (apiKey && fs.existsSync(mainFile.path)) {
       performScan(inserted.id, mainFile.path, apiKey).catch(async (err) => {
         const msg = String(err);
-        const isTransient = msg.includes("timed out") || msg.includes("rate") || msg.includes("429");
+        const isRateLimit = msg.includes("rate") || msg.includes("429");
         await db
           .update(filesTable)
           .set({
-            scanStatus: isTransient ? "pending" : "error",
-            scanDetails: isTransient ? null : msg,
+            scanStatus: isRateLimit ? "pending" : "error",
+            scanDetails: isRateLimit ? null : msg,
           })
           .where(eq(filesTable.id, inserted.id));
       });
+    } else if (!apiKey) {
+      await db
+        .update(filesTable)
+        .set({
+          scanStatus: "error",
+          scanDetails: "VirusTotal API key not configured — file unverified",
+        })
+        .where(eq(filesTable.id, inserted.id));
     }
 
     return res.status(201).json(fileToResponse(inserted));

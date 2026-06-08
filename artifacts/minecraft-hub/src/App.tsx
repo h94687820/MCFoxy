@@ -15,6 +15,7 @@ import SignInPage from "@/pages/sign-in";
 import SignUpPage from "@/pages/sign-up";
 import NotFound from "@/pages/not-found";
 import { useTheme } from "@/hooks/use-theme";
+import { LanguageProvider } from "@/contexts/language-context";
 
 const queryClient = new QueryClient();
 
@@ -150,9 +151,11 @@ function ClerkProviderWithRoutes() {
 
 function App() {
   return (
-    <WouterRouter base={basePath}>
-      <ClerkProviderWithRoutes />
-    </WouterRouter>
+    <LanguageProvider>
+      <WouterRouter base={basePath}>
+        <ClerkProviderWithRoutes />
+      </WouterRouter>
+    </LanguageProvider>
   );
 }
 

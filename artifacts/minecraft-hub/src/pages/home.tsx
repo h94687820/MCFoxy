@@ -29,6 +29,7 @@ import {
 import { formatBytes } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { UploadedFile } from "@workspace/api-client-react";
+import { useLanguage } from "@/contexts/language-context";
 
 const container = {
   hidden: { opacity: 0 },
@@ -37,12 +38,13 @@ const container = {
 const item = { hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } };
 
 function ScanStatusBadge({ status }: { status: string }) {
+  const { t } = useLanguage();
   const map: Record<string, { label: string; className: string }> = {
-    pending: { label: "Pending", className: "bg-muted text-muted-foreground" },
-    scanning: { label: "Scanning", className: "bg-yellow-500/20 text-yellow-400 animate-pulse" },
-    clean: { label: "Clean", className: "bg-green-500/20 text-green-400" },
-    malicious: { label: "Malicious", className: "bg-red-500/20 text-red-400" },
-    error: { label: "Unverified", className: "bg-muted text-muted-foreground" },
+    pending: { label: t.scan.pending, className: "bg-muted text-muted-foreground" },
+    scanning: { label: t.scan.scanning, className: "bg-yellow-500/20 text-yellow-400 animate-pulse" },
+    clean: { label: t.scan.clean, className: "bg-green-500/20 text-green-400" },
+    malicious: { label: t.scan.malicious, className: "bg-red-500/20 text-red-400" },
+    error: { label: t.scan.unverified, className: "bg-muted text-muted-foreground" },
   };
   const s = map[status] ?? map.pending;
   return (
@@ -88,6 +90,7 @@ function FileRow({ file }: { file: UploadedFile }) {
   const queryClient = useQueryClient();
   const deleteMutation = useDeleteFile();
   const { user } = useUser();
+  const { t } = useLanguage();
 
   const isOwner = !!user && file.uploadedBy === user.id;
 
@@ -144,7 +147,7 @@ function FileRow({ file }: { file: UploadedFile }) {
           data-testid={`link-download-${file.id}`}
           onClick={(e) => e.stopPropagation()}
         >
-          <Button variant="ghost" size="icon" className="h-7 w-7" title="Download file">
+          <Button variant="ghost" size="icon" className="h-7 w-7" title={t.fileDetail.download}>
             <Download className="w-3.5 h-3.5" />
           </Button>
         </a>
@@ -157,7 +160,7 @@ function FileRow({ file }: { file: UploadedFile }) {
             onClick={handleDelete}
             disabled={deleteMutation.isPending}
             data-testid={`button-delete-${file.id}`}
-            title="Delete file"
+            title={t.fileDetail.deleteFile}
           >
             <Trash2 className="w-3.5 h-3.5" />
           </Button>
@@ -169,7 +172,7 @@ function FileRow({ file }: { file: UploadedFile }) {
   );
 }
 
-function SubSection({ title, icon: Icon, files, loading }: { title: string; icon: React.ElementType; files: UploadedFile[]; loading: boolean }) {
+function SubSection({ title, icon: Icon, files, loading, emptyLabel }: { title: string; icon: React.ElementType; files: UploadedFile[]; loading: boolean; emptyLabel: string }) {
   return (
     <div>
       <div className="flex items-center gap-2 mb-2">
@@ -183,7 +186,7 @@ function SubSection({ title, icon: Icon, files, loading }: { title: string; icon
       ) : files.length === 0 ? (
         <div className="border border-dashed border-border p-5 flex items-center justify-center gap-2 text-xs text-muted-foreground">
           <FileX className="w-3.5 h-3.5" />
-          <span>No {title.toLowerCase()} yet</span>
+          <span>{emptyLabel}</span>
         </div>
       ) : (
         <motion.div variants={container} initial="hidden" animate="show" className="space-y-1.5">
@@ -209,20 +212,21 @@ function EditionSection({
   files: UploadedFile[];
   loading: boolean;
 }) {
+  const { t } = useLanguage();
   const mods = files.filter((f) => f.type === "mod");
   const maps = files.filter((f) => f.type === "map");
-  const label = edition === "java" ? "Java Edition" : "Bedrock Edition";
+  const label = edition === "java" ? t.home.javaEdition : t.home.bedrockEdition;
 
   return (
     <motion.div id={id} variants={item} className="border border-border scroll-mt-4">
       <div className={cn("flex items-center gap-3 px-5 py-3 border-b border-border", color)}>
         <EditionIcon className="w-4 h-4" />
         <h2 className="font-bold text-sm tracking-tight">{label}</h2>
-        <span className="ml-auto text-xs font-mono opacity-70">{loading ? "..." : files.length} files</span>
+        <span className="ml-auto text-xs font-mono opacity-70">{loading ? "..." : files.length} {t.home.files}</span>
       </div>
       <div className="p-5 space-y-5">
-        <SubSection title="Mods" icon={Package} files={mods} loading={loading} />
-        <SubSection title="Maps" icon={Map} files={maps} loading={loading} />
+        <SubSection title={t.home.mods} icon={Package} files={mods} loading={loading} emptyLabel={t.home.noMods} />
+        <SubSection title={t.home.maps} icon={Map} files={maps} loading={loading} emptyLabel={t.home.noMaps} />
       </div>
     </motion.div>
   );
@@ -235,6 +239,8 @@ function SectionJumpNav({
   javaRef: React.RefObject<HTMLDivElement | null>;
   bedrockRef: React.RefObject<HTMLDivElement | null>;
 }) {
+  const { t } = useLanguage();
+
   function scrollTo(ref: React.RefObject<HTMLDivElement | null>) {
     ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -243,7 +249,7 @@ function SectionJumpNav({
     <div className="fixed right-4 top-1/2 -translate-y-1/2 z-40 flex flex-col gap-2">
       <button
         onClick={() => scrollTo(javaRef)}
-        title="Jump to Java Edition"
+        title={t.home.javaEdition}
         className="group flex items-center gap-2 bg-sidebar border border-sidebar-border px-2.5 py-2 text-xs font-semibold hover:border-primary/60 hover:text-primary transition-colors shadow-lg"
       >
         <Cpu className="w-3.5 h-3.5 flex-shrink-0" />
@@ -251,7 +257,7 @@ function SectionJumpNav({
       </button>
       <button
         onClick={() => scrollTo(bedrockRef)}
-        title="Jump to Bedrock Edition"
+        title={t.home.bedrockEdition}
         className="group flex items-center gap-2 bg-sidebar border border-sidebar-border px-2.5 py-2 text-xs font-semibold hover:border-primary/60 hover:text-primary transition-colors shadow-lg"
       >
         <Pickaxe className="w-3.5 h-3.5 flex-shrink-0" />
@@ -264,6 +270,7 @@ function SectionJumpNav({
 export default function HomePage() {
   const { data: stats, isLoading: statsLoading } = useGetFileStats();
   const { data: allFiles, isLoading: filesLoading } = useListFiles();
+  const { t } = useLanguage();
 
   const javaRef = useRef<HTMLDivElement>(null);
   const bedrockRef = useRef<HTMLDivElement>(null);
@@ -276,8 +283,8 @@ export default function HomePage() {
       <SectionJumpNav javaRef={javaRef} bedrockRef={bedrockRef} />
 
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-1">Manage your Minecraft mods and maps</p>
+        <h1 className="text-2xl font-bold tracking-tight">{t.home.title}</h1>
+        <p className="text-sm text-muted-foreground mt-1">{t.home.subtitle}</p>
       </motion.div>
 
       <motion.div variants={container} initial="hidden" animate="show" className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
@@ -285,19 +292,19 @@ export default function HomePage() {
           [1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-16 w-full" />)
         ) : (
           <>
-            <StatCard icon={Cpu} label="Java Files" value={(stats?.javaMods ?? 0) + (stats?.javaMaps ?? 0)} color="bg-primary/10 text-primary" />
-            <StatCard icon={Pickaxe} label="Bedrock Files" value={(stats?.bedrockMods ?? 0) + (stats?.bedrockMaps ?? 0)} color="bg-primary/10 text-primary" />
-            <StatCard icon={ShieldCheck} label="Clean" value={stats?.cleanFiles ?? 0} color="bg-green-500/10 text-green-400" />
-            <StatCard icon={ShieldAlert} label="Malicious" value={stats?.maliciousFiles ?? 0} color="bg-red-500/10 text-red-400" />
+            <StatCard icon={Cpu} label={t.home.javaFiles} value={(stats?.javaMods ?? 0) + (stats?.javaMaps ?? 0)} color="bg-primary/10 text-primary" />
+            <StatCard icon={Pickaxe} label={t.home.bedrockFiles} value={(stats?.bedrockMods ?? 0) + (stats?.bedrockMaps ?? 0)} color="bg-primary/10 text-primary" />
+            <StatCard icon={ShieldCheck} label={t.home.clean} value={stats?.cleanFiles ?? 0} color="bg-green-500/10 text-green-400" />
+            <StatCard icon={ShieldAlert} label={t.home.malicious} value={stats?.maliciousFiles ?? 0} color="bg-red-500/10 text-red-400" />
           </>
         )}
       </motion.div>
 
       {stats && stats.totalSizeBytes > 0 && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-6 flex flex-wrap items-center gap-4 text-xs text-muted-foreground font-mono">
-          <span className="flex items-center gap-1.5"><HardDrive className="w-3.5 h-3.5" />{formatBytes(stats.totalSizeBytes)} stored</span>
+          <span className="flex items-center gap-1.5"><HardDrive className="w-3.5 h-3.5" />{formatBytes(stats.totalSizeBytes)} {t.home.stored}</span>
           {stats.pendingFiles > 0 && (
-            <span className="flex items-center gap-1.5 text-yellow-400"><Clock className="w-3.5 h-3.5" />{stats.pendingFiles} awaiting scan</span>
+            <span className="flex items-center gap-1.5 text-yellow-400"><Clock className="w-3.5 h-3.5" />{stats.pendingFiles} {t.home.awaitingScan}</span>
           )}
         </motion.div>
       )}

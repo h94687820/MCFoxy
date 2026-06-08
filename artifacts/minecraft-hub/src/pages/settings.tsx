@@ -9,7 +9,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { Moon, Palette, CheckCircle } from "lucide-react";
+import { Moon, Palette, CheckCircle, Languages } from "lucide-react";
+import { useLanguage, LANGUAGES, type Language } from "@/contexts/language-context";
 
 type ThemeName = "default" | "creeper" | "nether" | "ocean" | "end" | "sky";
 
@@ -30,6 +31,7 @@ export default function SettingsPage() {
   const { data: settings, isLoading } = useGetSettings();
   const updateMutation = useUpdateSettings();
   const [saved, setSaved] = useState(false);
+  const { t, language, setLanguage } = useLanguage();
 
   function update(patch: { theme?: ThemeName; darkMode?: boolean; virusTotalEnabled?: boolean }) {
     updateMutation.mutate({ data: patch }, {
@@ -45,13 +47,13 @@ export default function SettingsPage() {
     <div className="p-6 md:p-8 max-w-2xl">
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-8 flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
-          <p className="text-sm text-muted-foreground mt-1">Customize appearance</p>
+          <h1 className="text-2xl font-bold tracking-tight">{t.settings.title}</h1>
+          <p className="text-sm text-muted-foreground mt-1">{t.settings.subtitle}</p>
         </div>
         {saved && (
           <motion.div initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} className="flex items-center gap-1.5 text-xs text-green-400">
             <CheckCircle className="w-3.5 h-3.5" />
-            Saved
+            {t.settings.saved}
           </motion.div>
         )}
       </motion.div>
@@ -68,24 +70,24 @@ export default function SettingsPage() {
           <motion.div variants={item}>
             <div className="flex items-center gap-2 mb-4">
               <Palette className="w-4 h-4 text-primary" />
-              <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">Theme</h2>
+              <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">{t.settings.themeSection}</h2>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {themes.map((t) => {
-                const isSelected = settings?.theme === t.id;
+              {themes.map((t_) => {
+                const isSelected = settings?.theme === t_.id;
                 return (
                   <button
-                    key={t.id}
-                    data-testid={`button-theme-${t.id}`}
-                    onClick={() => update({ theme: t.id })}
+                    key={t_.id}
+                    data-testid={`button-theme-${t_.id}`}
+                    onClick={() => update({ theme: t_.id })}
                     className={cn(
                       "relative p-3 border text-left transition-all hover:border-primary/50 cursor-pointer",
                       isSelected ? "border-primary" : "border-border"
                     )}
                   >
-                    <div className="w-full h-8 mb-2" style={{ background: `linear-gradient(135deg, hsl(${t.bgHsl}) 40%, hsl(${t.primaryHsl}) 100%)` }} />
-                    <p className="text-xs font-semibold">{t.label}</p>
-                    <p className="text-xs text-muted-foreground">{t.description}</p>
+                    <div className="w-full h-8 mb-2" style={{ background: `linear-gradient(135deg, hsl(${t_.bgHsl}) 40%, hsl(${t_.primaryHsl}) 100%)` }} />
+                    <p className="text-xs font-semibold">{t_.label}</p>
+                    <p className="text-xs text-muted-foreground">{t_.description}</p>
                     {isSelected && (
                       <motion.div layoutId="theme-check" className="absolute top-2 right-2 w-4 h-4 bg-primary flex items-center justify-center">
                         <CheckCircle className="w-3 h-3 text-primary-foreground" />
@@ -101,18 +103,56 @@ export default function SettingsPage() {
           <motion.div variants={item}>
             <div className="flex items-center gap-2 mb-4">
               <Moon className="w-4 h-4 text-primary" />
-              <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">Display</h2>
+              <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">{t.settings.displaySection}</h2>
             </div>
             <div className="bg-card border border-card-border p-4 flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium">Dark Mode</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Use dark background across the interface</p>
+                <p className="text-sm font-medium">{t.settings.darkMode}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{t.settings.darkModeDesc}</p>
               </div>
               <Switch
                 data-testid="switch-dark-mode"
                 checked={settings?.darkMode ?? true}
                 onCheckedChange={(checked) => update({ darkMode: checked })}
               />
+            </div>
+          </motion.div>
+
+          {/* Language */}
+          <motion.div variants={item}>
+            <div className="flex items-center gap-2 mb-4">
+              <Languages className="w-4 h-4 text-primary" />
+              <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">{t.settings.languageSection}</h2>
+            </div>
+            <div className="bg-card border border-card-border p-4">
+              <div className="mb-3">
+                <p className="text-sm font-medium">{t.settings.languageLabel}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{t.settings.languageDesc}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {LANGUAGES.map((lang) => {
+                  const isSelected = language === lang.id;
+                  return (
+                    <button
+                      key={lang.id}
+                      data-testid={`button-lang-${lang.id}`}
+                      onClick={() => setLanguage(lang.id as Language)}
+                      className={cn(
+                        "flex items-center gap-3 p-3 border text-left transition-all hover:border-primary/50",
+                        isSelected ? "border-primary bg-primary/10" : "border-border"
+                      )}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold">{lang.nativeLabel}</p>
+                        <p className="text-xs text-muted-foreground">{lang.label}</p>
+                      </div>
+                      {isSelected && (
+                        <CheckCircle className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </motion.div>
         </motion.div>
