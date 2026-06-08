@@ -162,7 +162,36 @@ router.post(
       });
     }
 
-    const imageNames = imageFiles.map((f) => f.filename);
+    // ── Image moderation (DeepAI NSFW check) ─────────────────────────────────
+    const cleanImageFiles: Express.Multer.File[] = [];
+    const deepAiKey = process.env.DEEPAI_API_KEY;
+    for (const img of imageFiles) {
+      let isNsfw = false;
+      if (deepAiKey) {
+        try {
+          const imgBuffer = fs.readFileSync(img.path);
+          const fd = new FormData();
+          fd.append("image", new Blob([imgBuffer]), img.filename);
+          const modResp = await fetch("https://api.deepai.org/api/nsfw-detector", {
+            method: "POST",
+            headers: { "api-key": deepAiKey },
+            body: fd,
+          });
+          if (modResp.ok) {
+            const modData = (await modResp.json()) as { output?: { nsfw_score?: number } };
+            isNsfw = (modData?.output?.nsfw_score ?? 0) > 0.7;
+          }
+        } catch {
+          isNsfw = false;
+        }
+      }
+      if (isNsfw) {
+        if (fs.existsSync(img.path)) fs.unlinkSync(img.path);
+      } else {
+        cleanImageFiles.push(img);
+      }
+    }
+    const imageNames = cleanImageFiles.map((f) => f.filename);
 
     const [inserted] = await db
       .insert(filesTable)
