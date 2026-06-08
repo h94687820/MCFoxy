@@ -149,6 +149,17 @@ export default function Layout({ children }: LayoutProps) {
             <Shield className="w-3.5 h-3.5" />
             <span>{t.nav.virusTotalProtected}</span>
           </div>
+          <div className="text-xs text-muted-foreground text-center">
+            by{" "}
+            <a
+              href="https://youtube.com/@ifoxymc?si=jqr_ai47Vji1QdOh"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-primary hover:underline"
+            >
+              iFoxyMC
+            </a>
+          </div>
         </div>
       </aside>
 
