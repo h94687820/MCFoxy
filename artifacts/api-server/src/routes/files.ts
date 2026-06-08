@@ -343,16 +343,29 @@ async function performScan(fileId: number, filePath: string, apiKey: string) {
     const total =
       (stats.malicious ?? 0) + (stats.suspicious ?? 0) + (stats.undetected ?? 0) + (stats.harmless ?? 0);
 
-    await db
-      .update(filesTable)
-      .set({
-        scanStatus: malicious > 0 ? "malicious" : "clean",
-        detectionRatio: `${malicious}/${total}`,
-        virusTotalLink: `https://www.virustotal.com/gui/file-analysis/${analysisId}`,
-        scanEngine: "VirusTotal",
-        scanDetails: malicious > 0 ? `${malicious} engines flagged this file` : "No threats detected",
-      })
-      .where(eq(filesTable.id, fileId));
+    if (malicious > 0) {
+      const [file] = await db.select().from(filesTable).where(eq(filesTable.id, fileId));
+      if (file) {
+        if (fs.existsSync(file.filePath)) fs.unlinkSync(file.filePath);
+        const imgs = file.images ?? [];
+        imgs.forEach((imgName) => {
+          const imgPath = path.join(imagesDir, imgName);
+          if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath);
+        });
+        await db.delete(filesTable).where(eq(filesTable.id, fileId));
+      }
+    } else {
+      await db
+        .update(filesTable)
+        .set({
+          scanStatus: "clean",
+          detectionRatio: `0/${total}`,
+          virusTotalLink: `https://www.virustotal.com/gui/file-analysis/${analysisId}`,
+          scanEngine: "VirusTotal",
+          scanDetails: "No threats detected",
+        })
+        .where(eq(filesTable.id, fileId));
+    }
     return;
   }
 
