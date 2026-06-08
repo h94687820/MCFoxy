@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "@/hooks/use-navigate";
 import {
@@ -23,7 +24,6 @@ import {
   Pickaxe,
   Download,
   ChevronRight,
-  Image,
 } from "lucide-react";
 import { formatBytes } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -41,7 +41,7 @@ function ScanStatusBadge({ status }: { status: string }) {
     scanning: { label: "Scanning", className: "bg-yellow-500/20 text-yellow-400 animate-pulse" },
     clean: { label: "Clean", className: "bg-green-500/20 text-green-400" },
     malicious: { label: "Malicious", className: "bg-red-500/20 text-red-400" },
-    error: { label: "Error", className: "bg-orange-500/20 text-orange-400" },
+    error: { label: "Unverified", className: "bg-muted text-muted-foreground" },
   };
   const s = map[status] ?? map.pending;
   return (
@@ -65,6 +65,23 @@ function StatCard({ icon: Icon, label, value, color }: { icon: React.ElementType
   );
 }
 
+function FileThumbnail({ images, originalName }: { images: unknown; originalName: string }) {
+  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+  const imageList = Array.isArray(images) ? (images as string[]) : [];
+  if (!imageList.length) return null;
+
+  return (
+    <div className="w-12 h-12 flex-shrink-0 overflow-hidden border border-border bg-card">
+      <img
+        src={`${base}/api/uploads/images/${imageList[0]}`}
+        alt={originalName}
+        className="w-full h-full object-cover"
+        onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+      />
+    </div>
+  );
+}
+
 function FileRow({ file }: { file: UploadedFile }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -82,31 +99,29 @@ function FileRow({ file }: { file: UploadedFile }) {
 
   const date = new Date(file.uploadedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
-  const hasImages = Array.isArray(file.images) && file.images.length > 0;
+  const hasImages = Array.isArray(file.images) && (file.images as string[]).length > 0;
 
   return (
     <motion.div
       variants={item}
       data-testid={`card-file-${file.id}`}
       onClick={() => navigate(`/files/${file.id}`)}
-      className="bg-card border border-card-border p-3 flex items-center justify-between gap-3 hover:border-primary/50 transition-colors cursor-pointer"
+      className="bg-card border border-card-border p-3 flex items-center gap-3 hover:border-primary/50 transition-colors cursor-pointer"
     >
+      {/* Thumbnail — only shown if images exist */}
+      {hasImages && (
+        <FileThumbnail images={file.images} originalName={file.originalName} />
+      )}
+
+      {/* Info */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <p
-            className="font-medium text-sm truncate"
-            data-testid={`text-filename-${file.id}`}
-            title={file.originalName}
-          >
-            {file.originalName}
-          </p>
-          {hasImages && (
-            <span className="flex items-center gap-0.5 text-xs text-muted-foreground flex-shrink-0">
-              <Image className="w-3 h-3" />
-              {(file.images as string[]).length}
-            </span>
-          )}
-        </div>
+        <p
+          className="font-medium text-sm truncate"
+          data-testid={`text-filename-${file.id}`}
+          title={file.originalName}
+        >
+          {file.originalName}
+        </p>
         <div className="flex items-center gap-2 mt-1 flex-wrap">
           <ScanStatusBadge status={file.scanStatus} />
           <span className="text-xs text-muted-foreground font-mono">{formatBytes(file.size)}</span>
@@ -117,6 +132,7 @@ function FileRow({ file }: { file: UploadedFile }) {
         )}
       </div>
 
+      {/* Actions */}
       <div className="flex items-center gap-1 flex-shrink-0">
         <a
           href={`${base}/api/files/${file.id}/download`}
@@ -172,13 +188,27 @@ function SubSection({ title, icon: Icon, files, loading }: { title: string; icon
   );
 }
 
-function EditionSection({ edition, icon: EditionIcon, color, files, loading }: { edition: string; icon: React.ElementType; color: string; files: UploadedFile[]; loading: boolean }) {
+function EditionSection({
+  id,
+  edition,
+  icon: EditionIcon,
+  color,
+  files,
+  loading,
+}: {
+  id: string;
+  edition: string;
+  icon: React.ElementType;
+  color: string;
+  files: UploadedFile[];
+  loading: boolean;
+}) {
   const mods = files.filter((f) => f.type === "mod");
   const maps = files.filter((f) => f.type === "map");
   const label = edition === "java" ? "Java Edition" : "Bedrock Edition";
 
   return (
-    <motion.div variants={item} className="border border-border">
+    <motion.div id={id} variants={item} className="border border-border scroll-mt-4">
       <div className={cn("flex items-center gap-3 px-5 py-3 border-b border-border", color)}>
         <EditionIcon className="w-4 h-4" />
         <h2 className="font-bold text-sm tracking-tight">{label}</h2>
@@ -192,15 +222,53 @@ function EditionSection({ edition, icon: EditionIcon, color, files, loading }: {
   );
 }
 
+function SectionJumpNav({
+  javaRef,
+  bedrockRef,
+}: {
+  javaRef: React.RefObject<HTMLDivElement | null>;
+  bedrockRef: React.RefObject<HTMLDivElement | null>;
+}) {
+  function scrollTo(ref: React.RefObject<HTMLDivElement | null>) {
+    ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  return (
+    <div className="fixed right-4 top-1/2 -translate-y-1/2 z-40 flex flex-col gap-2">
+      <button
+        onClick={() => scrollTo(javaRef)}
+        title="Jump to Java Edition"
+        className="group flex items-center gap-2 bg-sidebar border border-sidebar-border px-2.5 py-2 text-xs font-semibold hover:border-primary/60 hover:text-primary transition-colors shadow-lg"
+      >
+        <Cpu className="w-3.5 h-3.5 flex-shrink-0" />
+        <span className="hidden group-hover:inline whitespace-nowrap">Java</span>
+      </button>
+      <button
+        onClick={() => scrollTo(bedrockRef)}
+        title="Jump to Bedrock Edition"
+        className="group flex items-center gap-2 bg-sidebar border border-sidebar-border px-2.5 py-2 text-xs font-semibold hover:border-primary/60 hover:text-primary transition-colors shadow-lg"
+      >
+        <Pickaxe className="w-3.5 h-3.5 flex-shrink-0" />
+        <span className="hidden group-hover:inline whitespace-nowrap">Bedrock</span>
+      </button>
+    </div>
+  );
+}
+
 export default function HomePage() {
   const { data: stats, isLoading: statsLoading } = useGetFileStats();
   const { data: allFiles, isLoading: filesLoading } = useListFiles();
+
+  const javaRef = useRef<HTMLDivElement>(null);
+  const bedrockRef = useRef<HTMLDivElement>(null);
 
   const javaFiles = allFiles?.filter((f) => f.edition === "java") ?? [];
   const bedrockFiles = allFiles?.filter((f) => f.edition === "bedrock") ?? [];
 
   return (
     <div className="p-6 md:p-8">
+      <SectionJumpNav javaRef={javaRef} bedrockRef={bedrockRef} />
+
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
         <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
         <p className="text-sm text-muted-foreground mt-1">Manage your Minecraft mods and maps</p>
@@ -229,8 +297,12 @@ export default function HomePage() {
       )}
 
       <motion.div variants={container} initial="hidden" animate="show" className="space-y-4">
-        <EditionSection edition="java" icon={Cpu} color="bg-primary/5" files={javaFiles} loading={filesLoading} />
-        <EditionSection edition="bedrock" icon={Pickaxe} color="bg-primary/5" files={bedrockFiles} loading={filesLoading} />
+        <div ref={javaRef}>
+          <EditionSection id="section-java" edition="java" icon={Cpu} color="bg-primary/5" files={javaFiles} loading={filesLoading} />
+        </div>
+        <div ref={bedrockRef}>
+          <EditionSection id="section-bedrock" edition="bedrock" icon={Pickaxe} color="bg-primary/5" files={bedrockFiles} loading={filesLoading} />
+        </div>
       </motion.div>
     </div>
   );

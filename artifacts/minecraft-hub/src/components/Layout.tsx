@@ -1,6 +1,7 @@
 import { Link, useLocation } from "wouter";
-import { LayoutGrid, Upload, Settings, Shield, Box } from "lucide-react";
+import { LayoutGrid, Upload, Settings, Shield, Box, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { usePWAInstall } from "@/hooks/use-pwa-install";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutGrid },
@@ -14,6 +15,7 @@ interface LayoutProps {
 
 export default function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
+  const { canInstall, install } = usePWAInstall();
 
   return (
     <div className="flex min-h-screen">
@@ -60,7 +62,16 @@ export default function Layout({ children }: LayoutProps) {
         </nav>
 
         {/* Footer */}
-        <div className="p-4 border-t border-sidebar-border">
+        <div className="p-4 border-t border-sidebar-border space-y-3">
+          {canInstall && (
+            <button
+              onClick={install}
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-sidebar-foreground border border-sidebar-border hover:border-primary/60 hover:text-primary transition-colors"
+            >
+              <Download className="w-3.5 h-3.5 flex-shrink-0" />
+              Install App (APK)
+            </button>
+          )}
           <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono">
             <Shield className="w-3.5 h-3.5" />
             <span>VirusTotal Protected</span>

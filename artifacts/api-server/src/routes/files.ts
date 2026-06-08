@@ -172,9 +172,15 @@ router.post(
     const apiKey = process.env.VIRUSTOTAL_API_KEY;
     if (apiKey && fs.existsSync(mainFile.path)) {
       performScan(inserted.id, mainFile.path, apiKey).catch(async (err) => {
+        const msg = String(err);
+        // Timeout/rate-limit → stay pending so it doesn't alarm users
+        const isTransient = msg.includes("timed out") || msg.includes("rate") || msg.includes("429");
         await db
           .update(filesTable)
-          .set({ scanStatus: "error", scanDetails: String(err) })
+          .set({
+            scanStatus: isTransient ? "pending" : "error",
+            scanDetails: isTransient ? null : msg,
+          })
           .where(eq(filesTable.id, inserted.id));
       });
     }
