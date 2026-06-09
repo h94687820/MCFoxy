@@ -3,7 +3,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { db, filesTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or, ilike } from "drizzle-orm";
 import { getAuth } from "@clerk/express";
 import {
   ListFilesQueryParams,
@@ -85,11 +85,20 @@ router.get("/files", async (req, res) => {
   const parseResult = ListFilesQueryParams.safeParse(req.query);
   if (!parseResult.success) return res.status(400).json({ error: "Invalid query params" });
 
-  const { edition, type, scanStatus } = parseResult.data;
+  const { edition, type, scanStatus, search } = parseResult.data as {
+    edition?: string;
+    type?: string;
+    scanStatus?: string;
+    search?: string;
+  };
   const conditions = [];
   if (edition) conditions.push(eq(filesTable.edition, edition));
   if (type) conditions.push(eq(filesTable.type, type));
   if (scanStatus) conditions.push(eq(filesTable.scanStatus, scanStatus));
+  if (search && search.trim()) {
+    const term = `%${search.trim()}%`;
+    conditions.push(or(ilike(filesTable.originalName, term), ilike(filesTable.customId, term))!);
+  }
 
   const files = conditions.length
     ? await db.select().from(filesTable).where(and(...conditions)).orderBy(filesTable.uploadedAt)
@@ -135,10 +144,11 @@ router.post(
 
     if (!mainFile) return res.status(400).json({ error: "No file uploaded" });
 
-    const { type, edition, description } = req.body as {
+    const { type, edition, description, customId } = req.body as {
       type?: string;
       edition?: string;
       description?: string;
+      customId?: string;
     };
 
     if (!type || !["mod", "map"].includes(type)) {
@@ -150,6 +160,20 @@ router.post(
       fs.unlinkSync(mainFile.path);
       imageFiles.forEach((f) => fs.existsSync(f.path) && fs.unlinkSync(f.path));
       return res.status(400).json({ error: "edition must be 'java' or 'bedrock'" });
+    }
+
+    const CUSTOM_ID_REGEX = /^[a-z0-9-]{3,50}$/;
+    if (!customId || !CUSTOM_ID_REGEX.test(customId)) {
+      fs.unlinkSync(mainFile.path);
+      imageFiles.forEach((f) => fs.existsSync(f.path) && fs.unlinkSync(f.path));
+      return res.status(400).json({ error: "customId must be 3–50 chars: lowercase letters, numbers, and hyphens only" });
+    }
+
+    const [existing] = await db.select({ id: filesTable.id }).from(filesTable).where(eq(filesTable.customId, customId));
+    if (existing) {
+      fs.unlinkSync(mainFile.path);
+      imageFiles.forEach((f) => fs.existsSync(f.path) && fs.unlinkSync(f.path));
+      return res.status(409).json({ error: "customId is already taken, please choose another" });
     }
 
     const ext = path.extname(mainFile.originalname).toLowerCase();
@@ -196,6 +220,7 @@ router.post(
     const [inserted] = await db
       .insert(filesTable)
       .values({
+        customId,
         name: mainFile.filename,
         originalName: mainFile.originalname,
         edition,

@@ -15,6 +15,7 @@ import {
   Cpu,
   Pickaxe,
   ImagePlus,
+  Hash,
 } from "lucide-react";
 import { formatBytes } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -23,6 +24,8 @@ import { useLanguage } from "@/contexts/language-context";
 type Edition = "java" | "bedrock";
 type FileType = "mod" | "map";
 type UploadState = "idle" | "uploading" | "success" | "error";
+
+const CUSTOM_ID_REGEX = /^[a-z0-9-]{3,50}$/;
 
 const EDITION_ACCEPT: Record<Edition, string> = {
   java: ".jar,.zip",
@@ -40,6 +43,8 @@ export default function UploadPage() {
   const [edition, setEdition] = useState<Edition>("java");
   const [fileType, setFileType] = useState<FileType>("mod");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [customId, setCustomId] = useState("");
+  const [customIdError, setCustomIdError] = useState<string>("");
   const [description, setDescription] = useState("");
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [uploadState, setUploadState] = useState<UploadState>("idle");
@@ -54,6 +59,24 @@ export default function UploadPage() {
     setUploadState("idle");
     setErrorMessage("");
     if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  function handleCustomIdChange(value: string) {
+    const normalized = value.toLowerCase().replace(/\s+/g, "-");
+    setCustomId(normalized);
+    setCustomIdError("");
+  }
+
+  function validateCustomId(): boolean {
+    if (!customId) {
+      setCustomIdError(t.upload.customIdInvalid);
+      return false;
+    }
+    if (!CUSTOM_ID_REGEX.test(customId)) {
+      setCustomIdError(t.upload.customIdInvalid);
+      return false;
+    }
+    return true;
   }
 
   const handleFile = useCallback((file: File) => {
@@ -87,6 +110,8 @@ export default function UploadPage() {
 
   async function handleUpload() {
     if (!selectedFile) return;
+    if (!validateCustomId()) return;
+
     setUploadState("uploading");
     setErrorMessage("");
 
@@ -95,6 +120,7 @@ export default function UploadPage() {
       formData.append("file", selectedFile);
       formData.append("type", fileType);
       formData.append("edition", edition);
+      formData.append("customId", customId);
       if (description.trim()) {
         formData.append("description", description.trim());
       }
@@ -105,7 +131,13 @@ export default function UploadPage() {
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
-        throw new Error((data as { error?: string }).error ?? `Upload failed (${response.status})`);
+        const errMsg = (data as { error?: string }).error ?? `Upload failed (${response.status})`;
+        if (response.status === 409 || errMsg.toLowerCase().includes("taken")) {
+          setCustomIdError(t.upload.customIdTaken);
+          setUploadState("idle");
+          return;
+        }
+        throw new Error(errMsg);
       }
 
       setUploadState("success");
@@ -114,6 +146,8 @@ export default function UploadPage() {
 
       setTimeout(() => {
         setSelectedFile(null);
+        setCustomId("");
+        setCustomIdError("");
         setDescription("");
         setSelectedImages([]);
         setUploadState("idle");
@@ -131,6 +165,9 @@ export default function UploadPage() {
     setErrorMessage("");
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
+
+  const customIdValid = CUSTOM_ID_REGEX.test(customId);
+  const canUpload = !!selectedFile && customIdValid && uploadState !== "uploading" && uploadState !== "success";
 
   const uploadBtnLabel = () => {
     if (uploadState === "uploading") return <><Loader2 className="w-4 h-4 mr-2 animate-spin" />{t.upload.uploadingButton}</>;
@@ -253,7 +290,41 @@ export default function UploadPage() {
           </p>
         </div>
 
-        {/* Step 4: Description */}
+        {/* Step 4: Custom ID */}
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1">{t.upload.stepCustomId}</p>
+          <p className="text-xs text-muted-foreground mb-3">{t.upload.stepCustomIdDesc}</p>
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+              <Hash className={cn("w-4 h-4", customId && customIdValid ? "text-primary" : "text-muted-foreground")} />
+            </div>
+            <input
+              type="text"
+              value={customId}
+              onChange={(e) => handleCustomIdChange(e.target.value)}
+              onBlur={() => customId && !customIdValid && setCustomIdError(t.upload.customIdInvalid)}
+              placeholder={t.upload.customIdPlaceholder}
+              maxLength={50}
+              className={cn(
+                "w-full bg-card border text-sm text-foreground placeholder:text-muted-foreground pl-9 pr-16 py-3 focus:outline-none transition-colors font-mono",
+                customIdError ? "border-red-500/60 focus:border-red-500" : customId && customIdValid ? "border-primary/60 focus:border-primary" : "border-border focus:border-primary/60"
+              )}
+            />
+            <span className="absolute inset-y-0 right-0 flex items-center pr-3 text-xs font-mono text-muted-foreground">
+              {customId.length}/50
+            </span>
+          </div>
+          {customIdError ? (
+            <p className="text-xs text-red-400 mt-1.5 flex items-center gap-1">
+              <AlertCircle className="w-3 h-3 flex-shrink-0" />
+              {customIdError}
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground mt-1.5 font-mono">{t.upload.customIdHint}</p>
+          )}
+        </div>
+
+        {/* Step 5: Description */}
         <div>
           <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">
             {t.upload.stepDescription} <span className="normal-case font-normal">{t.upload.stepDescriptionOptional}</span>
@@ -267,7 +338,7 @@ export default function UploadPage() {
           />
         </div>
 
-        {/* Step 5: Images */}
+        {/* Step 6: Images */}
         <div>
           <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">
             {t.upload.stepImages} <span className="normal-case font-normal">{t.upload.stepImagesOptional}</span>
@@ -333,7 +404,7 @@ export default function UploadPage() {
         <Button
           data-testid="button-upload"
           onClick={handleUpload}
-          disabled={!selectedFile || uploadState === "uploading" || uploadState === "success"}
+          disabled={!canUpload}
           className="w-full h-11"
         >
           {uploadBtnLabel()}

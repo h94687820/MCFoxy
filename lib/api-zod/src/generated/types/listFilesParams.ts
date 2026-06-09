@@ -13,4 +13,8 @@ export type ListFilesParams = {
 edition?: ListFilesEdition;
 type?: ListFilesType;
 scanStatus?: ListFilesScanStatus;
+/**
+ * Search by file name or custom ID
+ */
+search?: string;
 };

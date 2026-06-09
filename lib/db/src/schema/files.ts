@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 
 export const filesTable = pgTable("files", {
   id: serial("id").primaryKey(),
+  customId: text("custom_id").unique(),
   name: text("name").notNull(),
   originalName: text("original_name").notNull(),
   edition: text("edition").notNull().default("java"), // "java" | "bedrock"

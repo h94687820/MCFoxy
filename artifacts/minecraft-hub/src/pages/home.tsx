@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "@/hooks/use-navigate";
 import {
@@ -25,6 +25,8 @@ import {
   Pickaxe,
   Download,
   ChevronRight,
+  Search,
+  X,
 } from "lucide-react";
 import { formatBytes } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -107,6 +109,7 @@ function FileRow({ file }: { file: UploadedFile }) {
   const date = new Date(file.uploadedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
   const hasImages = Array.isArray(file.images) && (file.images as string[]).length > 0;
+  const fileWithCustomId = file as UploadedFile & { customId?: string | null };
 
   return (
     <motion.div
@@ -115,12 +118,10 @@ function FileRow({ file }: { file: UploadedFile }) {
       onClick={() => navigate(`/files/${file.id}`)}
       className="bg-card border border-card-border p-3 flex items-center gap-3 hover:border-primary/50 transition-colors cursor-pointer"
     >
-      {/* Thumbnail — only shown if images exist */}
       {hasImages && (
         <FileThumbnail images={file.images} originalName={file.originalName} />
       )}
 
-      {/* Info */}
       <div className="flex-1 min-w-0">
         <p
           className="font-medium text-sm truncate"
@@ -131,6 +132,11 @@ function FileRow({ file }: { file: UploadedFile }) {
         </p>
         <div className="flex items-center gap-2 mt-1 flex-wrap">
           <ScanStatusBadge status={file.scanStatus} />
+          {fileWithCustomId.customId && (
+            <span className="inline-flex items-center gap-0.5 text-xs font-mono text-primary/70 bg-primary/8 px-1.5 py-0.5 border border-primary/20">
+              #{fileWithCustomId.customId}
+            </span>
+          )}
           <span className="text-xs text-muted-foreground font-mono">{formatBytes(file.size)}</span>
           <span className="text-xs text-muted-foreground">{date}</span>
         </div>
@@ -139,7 +145,6 @@ function FileRow({ file }: { file: UploadedFile }) {
         )}
       </div>
 
-      {/* Actions */}
       <div className="flex items-center gap-1 flex-shrink-0">
         <a
           href={`${base}/api/files/${file.id}/download`}
@@ -267,16 +272,32 @@ function SectionJumpNav({
   );
 }
 
+function filterFiles(files: UploadedFile[], query: string): UploadedFile[] {
+  if (!query.trim()) return files;
+  const q = query.trim().toLowerCase();
+  return files.filter((f) => {
+    const withCustomId = f as UploadedFile & { customId?: string | null };
+    return (
+      f.originalName.toLowerCase().includes(q) ||
+      (withCustomId.customId && withCustomId.customId.toLowerCase().includes(q))
+    );
+  });
+}
+
 export default function HomePage() {
   const { data: stats, isLoading: statsLoading } = useGetFileStats();
   const { data: allFiles, isLoading: filesLoading } = useListFiles();
   const { t } = useLanguage();
+  const [searchQuery, setSearchQuery] = useState("");
 
   const javaRef = useRef<HTMLDivElement>(null);
   const bedrockRef = useRef<HTMLDivElement>(null);
 
-  const javaFiles = allFiles?.filter((f) => f.edition === "java") ?? [];
-  const bedrockFiles = allFiles?.filter((f) => f.edition === "bedrock") ?? [];
+  const filteredFiles = filterFiles(allFiles ?? [], searchQuery);
+  const javaFiles = filteredFiles.filter((f) => f.edition === "java");
+  const bedrockFiles = filteredFiles.filter((f) => f.edition === "bedrock");
+  const isSearching = searchQuery.trim().length > 0;
+  const noResults = isSearching && filteredFiles.length === 0 && !filesLoading;
 
   return (
     <div className="p-6 md:p-8">
@@ -309,14 +330,44 @@ export default function HomePage() {
         </motion.div>
       )}
 
-      <motion.div variants={container} initial="hidden" animate="show" className="space-y-4">
-        <div ref={javaRef}>
-          <EditionSection id="section-java" edition="java" icon={Cpu} color="bg-primary/5" files={javaFiles} loading={filesLoading} />
+      {/* Search bar */}
+      <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mb-6 relative">
+        <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+          <Search className="w-4 h-4 text-muted-foreground" />
         </div>
-        <div ref={bedrockRef}>
-          <EditionSection id="section-bedrock" edition="bedrock" icon={Pickaxe} color="bg-primary/5" files={bedrockFiles} loading={filesLoading} />
-        </div>
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder={t.home.searchPlaceholder}
+          className="w-full bg-card border border-border text-sm text-foreground placeholder:text-muted-foreground pl-9 pr-9 py-2.5 focus:outline-none focus:border-primary/60 transition-colors"
+        />
+        {searchQuery && (
+          <button
+            onClick={() => setSearchQuery("")}
+            className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
       </motion.div>
+
+      {noResults ? (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="border border-dashed border-border p-10 flex flex-col items-center gap-3 text-muted-foreground">
+          <Search className="w-6 h-6 opacity-40" />
+          <p className="text-sm">{t.home.noResults}</p>
+          <button onClick={() => setSearchQuery("")} className="text-xs text-primary hover:underline">{t.home.searchPlaceholder.split("…")[0]}</button>
+        </motion.div>
+      ) : (
+        <motion.div variants={container} initial="hidden" animate="show" className="space-y-4">
+          <div ref={javaRef}>
+            <EditionSection id="section-java" edition="java" icon={Cpu} color="bg-primary/5" files={javaFiles} loading={filesLoading} />
+          </div>
+          <div ref={bedrockRef}>
+            <EditionSection id="section-bedrock" edition="bedrock" icon={Pickaxe} color="bg-primary/5" files={bedrockFiles} loading={filesLoading} />
+          </div>
+        </motion.div>
+      )}
     </div>
   );
 }

@@ -38,6 +38,8 @@ export const UploadedFileScanStatus = {
 
 export interface UploadedFile {
   id: number;
+  /** @nullable */
+  customId?: string | null;
   name: string;
   originalName: string;
   edition: UploadedFileEdition;
@@ -143,6 +145,10 @@ export type ListFilesParams = {
 edition?: ListFilesEdition;
 type?: ListFilesType;
 scanStatus?: ListFilesScanStatus;
+/**
+ * Search by file name or custom ID
+ */
+search?: string;
 };
 
 export type ListFilesEdition = typeof ListFilesEdition[keyof typeof ListFilesEdition];

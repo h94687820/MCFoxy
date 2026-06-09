@@ -11,6 +11,8 @@ import type { UploadedFileType } from './uploadedFileType';
 
 export interface UploadedFile {
   id: number;
+  /** @nullable */
+  customId?: string | null;
   name: string;
   originalName: string;
   edition: UploadedFileEdition;

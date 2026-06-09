@@ -22,11 +22,13 @@ export const HealthCheckResponse = zod.object({
 export const ListFilesQueryParams = zod.object({
   "edition": zod.enum(['java', 'bedrock']).optional(),
   "type": zod.enum(['mod', 'map']).optional(),
-  "scanStatus": zod.enum(['pending', 'scanning', 'clean', 'malicious', 'error']).optional()
+  "scanStatus": zod.enum(['pending', 'scanning', 'clean', 'malicious', 'error']).optional(),
+  "search": zod.coerce.string().optional().describe('Search by file name or custom ID')
 })
 
 export const ListFilesResponseItem = zod.object({
   "id": zod.number(),
+  "customId": zod.string().nullish(),
   "name": zod.string(),
   "originalName": zod.string(),
   "edition": zod.enum(['java', 'bedrock']),
@@ -55,6 +57,7 @@ export const GetFileParams = zod.object({
 
 export const GetFileResponse = zod.object({
   "id": zod.number(),
+  "customId": zod.string().nullish(),
   "name": zod.string(),
   "originalName": zod.string(),
   "edition": zod.enum(['java', 'bedrock']),
