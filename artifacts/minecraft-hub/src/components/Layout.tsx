@@ -184,17 +184,24 @@ export default function Layout({ children }: LayoutProps) {
         </div>
         {isLoaded && (
           user ? (
-            <button
-              onClick={() => signOut({ redirectUrl: basePath || "/" })}
-              className="flex items-center gap-1.5 text-xs text-muted-foreground"
-            >
-              {user.imageUrl ? (
-                <img src={user.imageUrl} alt="" className="w-6 h-6 rounded-full object-cover" />
-              ) : (
-                <User className="w-4 h-4" />
-              )}
-              <LogOut className="w-3.5 h-3.5" />
-            </button>
+            <div className="flex items-center gap-3">
+              <Link href="/profile" className="flex items-center">
+                {user.imageUrl ? (
+                  <img src={user.imageUrl} alt={user.fullName ?? "User"} className="w-7 h-7 rounded-full object-cover ring-1 ring-transparent hover:ring-primary transition-all" />
+                ) : (
+                  <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center">
+                    <User className="w-4 h-4 text-primary" />
+                  </div>
+                )}
+              </Link>
+              <button
+                onClick={() => signOut({ redirectUrl: basePath || "/" })}
+                className="flex items-center justify-center w-7 h-7 text-muted-foreground hover:text-primary transition-colors"
+                aria-label={t.nav.signOut}
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
           ) : (
             <Link href="/sign-in" className="text-xs text-primary font-medium flex items-center gap-1">
               <LogIn className="w-3.5 h-3.5" />
