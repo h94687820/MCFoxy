@@ -14,6 +14,8 @@ tags:
     description: Mod and map file operations
   - name: settings
     description: User settings
+  - name: profiles
+    description: User profile operations
 
 paths:
   /healthz:
@@ -134,6 +136,88 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/FileStats"
+
+  /profiles/me:
+    get:
+      operationId: getMyProfile
+      tags: [profiles]
+      summary: Get current user's profile
+      responses:
+        "200":
+          description: Profile found or created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+        "401":
+          description: Unauthorized
+
+    put:
+      operationId: updateMyProfile
+      tags: [profiles]
+      summary: Update current user's profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileInput"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+        "400":
+          description: Validation error or username taken
+        "401":
+          description: Unauthorized
+
+  /profiles/check-username:
+    get:
+      operationId: checkUsername
+      tags: [profiles]
+      summary: Check if a username is available
+      parameters:
+        - name: username
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: excludeUserId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Availability result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UsernameCheck"
+
+  /profiles/{username}:
+    get:
+      operationId: getProfileByUsername
+      tags: [profiles]
+      summary: Get a public profile by username
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Public profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+        "404":
+          description: Not found
 
   /settings:
     get:
@@ -264,6 +348,55 @@ components:
         - maliciousFiles
         - pendingFiles
         - totalSizeBytes
+
+    Profile:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        username:
+          type: string
+        displayName:
+          type: ["string", "null"]
+        bio:
+          type: ["string", "null"]
+        avatarUrl:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - userId
+        - username
+        - createdAt
+        - updatedAt
+
+    ProfileInput:
+      type: object
+      properties:
+        username:
+          type: string
+        displayName:
+          type: string
+        bio:
+          type: string
+        avatarUrl:
+          type: string
+
+    UsernameCheck:
+      type: object
+      properties:
+        available:
+          type: boolean
+        valid:
+          type: boolean
+      required:
+        - available
+        - valid
 
     Settings:
       type: object

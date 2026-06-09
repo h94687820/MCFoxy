@@ -108,6 +108,76 @@ export const GetFileStatsResponse = zod.object({
 
 
 /**
+ * @summary Get current user's profile
+ */
+export const GetMyProfileResponse = zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "username": zod.string(),
+  "displayName": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update current user's profile
+ */
+export const UpdateMyProfileBody = zod.object({
+  "username": zod.string().optional(),
+  "displayName": zod.string().optional(),
+  "bio": zod.string().optional(),
+  "avatarUrl": zod.string().optional()
+})
+
+export const UpdateMyProfileResponse = zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "username": zod.string(),
+  "displayName": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Check if a username is available
+ */
+export const CheckUsernameQueryParams = zod.object({
+  "username": zod.coerce.string(),
+  "excludeUserId": zod.coerce.string().optional()
+})
+
+export const CheckUsernameResponse = zod.object({
+  "available": zod.boolean(),
+  "valid": zod.boolean()
+})
+
+
+/**
+ * @summary Get a public profile by username
+ */
+export const GetProfileByUsernameParams = zod.object({
+  "username": zod.coerce.string()
+})
+
+export const GetProfileByUsernameResponse = zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "username": zod.string(),
+  "displayName": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
  * @summary Get current settings
  */
 export const GetSettingsResponse = zod.object({

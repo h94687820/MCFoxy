@@ -6,12 +6,15 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './checkUsernameParams';
 export * from './fileStats';
 export * from './healthStatus';
 export * from './listFilesEdition';
 export * from './listFilesParams';
 export * from './listFilesScanStatus';
 export * from './listFilesType';
+export * from './profile';
+export * from './profileInput';
 export * from './settings';
 export * from './settingsInput';
 export * from './settingsInputTheme';
@@ -20,3 +23,4 @@ export * from './uploadedFile';
 export * from './uploadedFileEdition';
 export * from './uploadedFileScanStatus';
 export * from './uploadedFileType';
+export * from './usernameCheck';

@@ -106,18 +106,21 @@ export default function Layout({ children }: LayoutProps) {
           {isLoaded && (
             user ? (
               <div className="space-y-2">
-                <div className="flex items-center gap-2.5 px-1">
+                <Link
+                  href="/profile"
+                  className="flex items-center gap-2.5 px-1 hover:opacity-80 transition-opacity cursor-pointer group"
+                >
                   {user.imageUrl ? (
-                    <img src={user.imageUrl} alt={user.fullName ?? "User"} className="w-6 h-6 rounded-full flex-shrink-0 object-cover" />
+                    <img src={user.imageUrl} alt={user.fullName ?? "User"} className="w-6 h-6 rounded-full flex-shrink-0 object-cover ring-1 ring-transparent group-hover:ring-primary transition-all" />
                   ) : (
                     <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
                       <User className="w-3 h-3 text-primary" />
                     </div>
                   )}
-                  <span className="text-xs text-sidebar-foreground truncate flex-1">
+                  <span className="text-xs text-sidebar-foreground truncate flex-1 group-hover:text-primary transition-colors">
                     {user.fullName ?? user.primaryEmailAddress?.emailAddress ?? "User"}
                   </span>
-                </div>
+                </Link>
                 <button
                   onClick={() => signOut({ redirectUrl: basePath || "/" })}
                   className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-muted-foreground border border-sidebar-border hover:border-primary/60 hover:text-primary transition-colors"
@@ -127,13 +130,15 @@ export default function Layout({ children }: LayoutProps) {
                 </button>
               </div>
             ) : (
-              <Link
-                href="/sign-in"
-                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-muted-foreground border border-sidebar-border hover:border-primary/60 hover:text-primary transition-colors"
-              >
-                <LogIn className="w-3.5 h-3.5 flex-shrink-0" />
-                {t.nav.signIn}
-              </Link>
+              <div className="space-y-2">
+                <Link
+                  href="/sign-in"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-muted-foreground border border-sidebar-border hover:border-primary/60 hover:text-primary transition-colors"
+                >
+                  <LogIn className="w-3.5 h-3.5 flex-shrink-0" />
+                  {t.nav.signIn}
+                </Link>
+              </div>
             )
           )}
           {canInstall && (

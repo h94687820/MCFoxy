@@ -11,6 +11,8 @@ import HomePage from "@/pages/home";
 import UploadPage from "@/pages/upload";
 import SettingsPage from "@/pages/settings";
 import FileDetailPage from "@/pages/file-detail";
+import ProfilePage from "@/pages/profile";
+import UserProfilePage from "@/pages/user-profile";
 import SignInPage from "@/pages/sign-in";
 import SignUpPage from "@/pages/sign-up";
 import NotFound from "@/pages/not-found";
@@ -114,6 +116,8 @@ function AppContent() {
         <Route path="/" component={HomePage} />
         <Route path="/upload" component={UploadPage} />
         <Route path="/settings" component={SettingsPage} />
+        <Route path="/profile" component={ProfilePage} />
+        <Route path="/u/:username" component={UserProfilePage} />
         <Route path="/files/:id" component={FileDetailPage} />
         <Route component={NotFound} />
       </Switch>

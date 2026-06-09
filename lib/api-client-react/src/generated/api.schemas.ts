@@ -76,6 +76,32 @@ export interface FileStats {
   totalSizeBytes: number;
 }
 
+export interface Profile {
+  id: number;
+  userId: string;
+  username: string;
+  /** @nullable */
+  displayName?: string | null;
+  /** @nullable */
+  bio?: string | null;
+  /** @nullable */
+  avatarUrl?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProfileInput {
+  username?: string;
+  displayName?: string;
+  bio?: string;
+  avatarUrl?: string;
+}
+
+export interface UsernameCheck {
+  available: boolean;
+  valid: boolean;
+}
+
 export type SettingsTheme = typeof SettingsTheme[keyof typeof SettingsTheme];
 
 
@@ -145,4 +171,9 @@ export const ListFilesScanStatus = {
   malicious: 'malicious',
   error: 'error',
 } as const;
+
+export type CheckUsernameParams = {
+username: string;
+excludeUserId?: string;
+};
 
