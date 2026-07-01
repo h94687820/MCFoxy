@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "IMQo2v_niwLsmAMm3sG6F"
+uri = "file://modvault-source.tar.gz"
+type = "unspecified"
+title = "ModVault — كود المشروع كاملاً"
