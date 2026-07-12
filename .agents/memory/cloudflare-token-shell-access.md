@@ -1,23 +1,24 @@
 ---
-name: Cloudflare token not available in any shell
-description: Why `wrangler deploy` / `wrangler login` cannot be automated from Replit shells for this project
+name: Cloudflare token shell access
+description: CLOUDFLARE_API_TOKEN reaches shells fine once it's a real, valid secret value — earlier "missing" symptom was a stale/invalid secret, not a platform block
 ---
 
-`CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` exist as configured secrets (visible in
-the secrets list) but are **not** injected into process env for either the agent's `ShellExec`
-or the user's own Replit Shell tab — confirmed by direct `env` checks in both contexts on
-2026-07-12. Other secrets (`NEON_DATABASE_URL`, `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`)
-were accessible in the same checks, so this isn't a blanket secrets outage — it looks like a
-deliberate boundary specifically around tokens that grant broad external cloud-account control.
+Earlier investigation (2026-07-12) found `CLOUDFLARE_API_TOKEN` empty in both agent `ShellExec`
+and the user's own Shell tab, causing `wrangler` to fall back to interactive OAuth login (which
+hangs forever — the OAuth callback needs a `localhost` port only reachable on a real external
+machine, not inside the Replit container).
 
-**Why:** Because the token is missing, `wrangler` falls back to interactive OAuth login, which
-opens a browser URL whose callback must hit a `localhost` port — but that port lives inside the
-Replit container and is not reachable from the public internet, so the OAuth flow hangs forever
-("Port opened, but not exposed to the web").
+**Correction:** after the user rolled/regenerated the token in the Cloudflare dashboard and
+re-saved it via the secure `requestSecrets` flow, `CLOUDFLARE_API_TOKEN` showed up correctly in
+shell env and `wrangler whoami` / `wrangler deploy` worked directly from Replit's own shell —
+no OAuth, no external machine needed.
 
-**How to apply:** Don't try to route around this by testing more shell contexts, spawning
-temp workflows, or hunting for stored wrangler credentials — already ruled out (no
-`~/.wrangler` config with a stored token exists either). `wrangler deploy`/`wrangler login`
-for this project can only succeed if run from a real terminal outside Replit (the user's own
-machine), or by switching the deployment target to Replit's native Publish flow, which needs
-no external token.
+**Why:** the original value was apparently never a valid, properly-saved secret (e.g. stale/
+placeholder), not because Replit blocks this class of secret from shells. Don't assume a secret
+is platform-blocked just because one shell check shows it empty — a fresh `requestSecrets` round
+can fix it outright.
+
+**How to apply:** if a Cloudflare (or similar external-provider) deploy command falls back to
+interactive OAuth, first check whether the token secret is actually populated/valid before
+concluding it's an architectural restriction — re-request it via `requestSecrets` and recheck
+`env` before telling the user it can only be done from their own machine.
