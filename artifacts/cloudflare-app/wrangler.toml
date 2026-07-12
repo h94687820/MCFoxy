@@ -1,0 +1,22 @@
+name = "minecraft-hub"
+main = "src/index.ts"
+compatibility_date = "2024-11-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Static frontend build output (built by `pnpm --filter @workspace/minecraft-hub run build`)
+[assets]
+directory = "../minecraft-hub/dist/public"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+# R2 bucket for uploaded mod/map files and images (create with:
+# `wrangler r2 bucket create minecraft-hub-uploads`)
+[[r2_buckets]]
+binding = "UPLOADS"
+bucket_name = "minecraft-hub-uploads"
+
+# Non-secret vars. Secrets (CLERK_SECRET_KEY, CLERK_PUBLISHABLE_KEY,
+# DATABASE_URL, DEEPAI_API_KEY, VIRUSTOTAL_API_KEY) are set via
+# `wrangler secret put <NAME>` and must NOT be committed here.
+[vars]
+NODE_ENV = "production"

@@ -1,0 +1,29 @@
+{
+  "name": "@workspace/cloudflare-app",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node ./scripts/dev-vars.mjs && wrangler dev --port ${PORT:-8787} --ip 0.0.0.0",
+    "build": "pnpm --filter @workspace/minecraft-hub run build",
+    "deploy": "pnpm run build && wrangler deploy",
+    "db:push": "drizzle-kit push --config ./drizzle.config.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@clerk/backend": "^1.21.5",
+    "@neondatabase/serverless": "^0.10.4",
+    "@workspace/api-zod": "workspace:*",
+    "@workspace/db": "workspace:*",
+    "drizzle-orm": "catalog:",
+    "hono": "^4.6.14",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241127.0",
+    "@types/node": "catalog:",
+    "drizzle-kit": "^0.31.10",
+    "typescript": "~5.9.3",
+    "wrangler": "^4.15.0"
+  }
+}
