@@ -1,2 +1,3 @@
 - [Replit Auth lib tsconfig](replit-auth-lib.md) — composite lib needs specific fixes; import.meta.env and workspace dep pitfalls documented
 - [Clerk Auth setup](clerk-auth-setup.md) — Clerk provisioned with Google; key wiring, Tailwind v4 layer order, and ownership guard pattern documented
+- [Cloudflare token not in shells](cloudflare-token-shell-access.md) — CLOUDFLARE_API_TOKEN unreachable from agent/user shells; wrangler deploy can't be automated here
