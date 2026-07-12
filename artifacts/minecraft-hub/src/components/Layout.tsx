@@ -113,43 +113,41 @@ export default function Layout({ children }: LayoutProps) {
 
         {/* Footer */}
         <div className="p-4 border-t border-sidebar-border space-y-3">
-          {isLoaded && (
-            user ? (
-              <div className="space-y-2">
-                <Link
-                  href="/profile"
-                  className="flex items-center gap-2.5 px-1 hover:opacity-80 transition-opacity cursor-pointer group"
-                >
-                  {avatarSrc ? (
-                    <img src={avatarSrc} alt={displayLabel} className="w-6 h-6 rounded-full flex-shrink-0 object-cover ring-1 ring-transparent group-hover:ring-primary transition-all" />
-                  ) : (
-                    <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
-                      <User className="w-3 h-3 text-primary" />
-                    </div>
-                  )}
-                  <span className="text-xs text-sidebar-foreground truncate flex-1 group-hover:text-primary transition-colors">
-                    {displayLabel}
-                  </span>
-                </Link>
-                <button
-                  onClick={() => signOut({ redirectUrl: basePath || "/" })}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-muted-foreground border border-sidebar-border hover:border-primary/60 hover:text-primary transition-colors"
-                >
-                  <LogOut className="w-3.5 h-3.5 flex-shrink-0" />
-                  {t.nav.signOut}
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <Link
-                  href="/sign-in"
-                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-muted-foreground border border-sidebar-border hover:border-primary/60 hover:text-primary transition-colors"
-                >
-                  <LogIn className="w-3.5 h-3.5 flex-shrink-0" />
-                  {t.nav.signIn}
-                </Link>
-              </div>
-            )
+          {isLoaded && user ? (
+            <div className="space-y-2">
+              <Link
+                href="/profile"
+                className="flex items-center gap-2.5 px-1 hover:opacity-80 transition-opacity cursor-pointer group"
+              >
+                {avatarSrc ? (
+                  <img src={avatarSrc} alt={displayLabel} className="w-6 h-6 rounded-full flex-shrink-0 object-cover ring-1 ring-transparent group-hover:ring-primary transition-all" />
+                ) : (
+                  <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                    <User className="w-3 h-3 text-primary" />
+                  </div>
+                )}
+                <span className="text-xs text-sidebar-foreground truncate flex-1 group-hover:text-primary transition-colors">
+                  {displayLabel}
+                </span>
+              </Link>
+              <button
+                onClick={() => signOut({ redirectUrl: basePath || "/" })}
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-muted-foreground border border-sidebar-border hover:border-primary/60 hover:text-primary transition-colors"
+              >
+                <LogOut className="w-3.5 h-3.5 flex-shrink-0" />
+                {t.nav.signOut}
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Link
+                href="/sign-in"
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-muted-foreground border border-sidebar-border hover:border-primary/60 hover:text-primary transition-colors"
+              >
+                <LogIn className="w-3.5 h-3.5 flex-shrink-0" />
+                {t.nav.signIn}
+              </Link>
+            </div>
           )}
           {canInstall && (
             <button
@@ -192,32 +190,30 @@ export default function Layout({ children }: LayoutProps) {
           </div>
           <span className="font-bold text-sm tracking-tight">WhiteWase</span>
         </div>
-        {isLoaded && (
-          user ? (
-            <div className="flex items-center gap-3">
-              <Link href="/profile" className="flex items-center">
-                {avatarSrc ? (
-                  <img src={avatarSrc} alt={displayLabel} className="w-7 h-7 rounded-full object-cover ring-1 ring-transparent hover:ring-primary transition-all" />
-                ) : (
-                  <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center">
-                    <User className="w-4 h-4 text-primary" />
-                  </div>
-                )}
-              </Link>
-              <button
-                onClick={() => signOut({ redirectUrl: basePath || "/" })}
-                className="flex items-center justify-center w-7 h-7 text-muted-foreground hover:text-primary transition-colors"
-                aria-label={t.nav.signOut}
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
-            </div>
-          ) : (
-            <Link href="/sign-in" className="text-xs text-primary font-medium flex items-center gap-1">
-              <LogIn className="w-3.5 h-3.5" />
-              {t.nav.signIn}
+        {isLoaded && user ? (
+          <div className="flex items-center gap-3">
+            <Link href="/profile" className="flex items-center">
+              {avatarSrc ? (
+                <img src={avatarSrc} alt={displayLabel} className="w-7 h-7 rounded-full object-cover ring-1 ring-transparent hover:ring-primary transition-all" />
+              ) : (
+                <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center">
+                  <User className="w-4 h-4 text-primary" />
+                </div>
+              )}
             </Link>
-          )
+            <button
+              onClick={() => signOut({ redirectUrl: basePath || "/" })}
+              className="flex items-center justify-center w-7 h-7 text-muted-foreground hover:text-primary transition-colors"
+              aria-label={t.nav.signOut}
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
+        ) : (
+          <Link href="/sign-in" className="text-xs text-primary font-medium flex items-center gap-1">
+            <LogIn className="w-3.5 h-3.5" />
+            {t.nav.signIn}
+          </Link>
         )}
       </header>
 
