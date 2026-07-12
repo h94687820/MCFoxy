@@ -10,7 +10,7 @@ import {
   getGetMyProfileQueryKey,
   getCheckUsernameQueryKey,
 } from "@workspace/api-client-react";
-import { CheckCircle, XCircle, Loader2, User, AtSign, FileText, Image, AlertCircle } from "lucide-react";
+import { CheckCircle, XCircle, Loader2, User, AtSign, FileText, Camera, AlertCircle, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 function useDebounce<T>(value: T, delay: number): T {
@@ -37,6 +37,9 @@ export default function ProfilePage() {
   const [avatarUrl, setAvatarUrl] = useState("");
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarError, setAvatarError] = useState("");
+  const avatarInputRef = useRef<HTMLInputElement>(null);
   const initialized = useRef(false);
 
   useEffect(() => {
@@ -61,6 +64,27 @@ export default function ProfilePage() {
   });
 
   const updateMutation = useUpdateMyProfile();
+
+  async function handleAvatarUpload(file: File) {
+    setAvatarError("");
+    setAvatarUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("avatar", file);
+      const resp = await fetch(`${import.meta.env.BASE_URL}api/profiles/avatar`, {
+        method: "POST",
+        body: fd,
+      });
+      const data = await resp.json() as { url?: string; error?: string };
+      if (!resp.ok) throw new Error(data.error ?? "Upload failed");
+      setAvatarUrl(data.url!);
+      qc.invalidateQueries({ queryKey: getGetMyProfileQueryKey() });
+    } catch (e: unknown) {
+      setAvatarError(e instanceof Error ? e.message : "Upload failed");
+    } finally {
+      setAvatarUploading(false);
+    }
+  }
 
   function handleSave() {
     setSaveError("");
@@ -128,20 +152,57 @@ export default function ProfilePage() {
         animate={{ opacity: 1, transition: { delay: 0.05 } }}
         className="space-y-6"
       >
-        {/* Avatar preview */}
+        {/* Avatar preview + upload */}
         <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center border border-border flex-shrink-0">
-            {avatarSrc ? (
-              <img src={avatarSrc} alt="Avatar" className="w-full h-full object-cover" />
-            ) : (
-              <User className="w-8 h-8 text-muted-foreground" />
-            )}
+          <div className="relative group">
+            <div className="w-16 h-16 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center border border-border flex-shrink-0">
+              {avatarUploading ? (
+                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+              ) : avatarSrc ? (
+                <img src={avatarSrc} alt="Avatar" className="w-full h-full object-cover" />
+              ) : (
+                <User className="w-8 h-8 text-muted-foreground" />
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => avatarInputRef.current?.click()}
+              disabled={avatarUploading}
+              className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
+            >
+              <Camera className="w-5 h-5 text-white" />
+            </button>
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/gif,image/webp"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleAvatarUpload(file);
+              }}
+            />
           </div>
           <div className="text-sm text-muted-foreground">
             <p className="font-medium text-foreground">{user.fullName ?? user.primaryEmailAddress?.emailAddress}</p>
             <p className="text-xs mt-0.5">{user.primaryEmailAddress?.emailAddress}</p>
+            <button
+              type="button"
+              onClick={() => avatarInputRef.current?.click()}
+              disabled={avatarUploading}
+              className="text-xs text-primary hover:underline mt-1 flex items-center gap-1"
+            >
+              <Upload className="w-3 h-3" />
+              {avatarUploading ? "جار الرفع..." : "تغيير الصورة"}
+            </button>
           </div>
         </div>
+        {avatarError && (
+          <div className="flex items-center gap-2 text-xs text-red-400 bg-red-500/10 border border-red-500/20 px-3 py-2">
+            <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+            {avatarError}
+          </div>
+        )}
 
         {/* Display name */}
         <div className="space-y-2">
@@ -199,24 +260,6 @@ export default function ProfilePage() {
           </p>
           <p className="text-xs text-muted-foreground/60 font-mono" dir="ltr">
             رابط صفحتك: /u/{username || "..."}
-          </p>
-        </div>
-
-        {/* Avatar URL */}
-        <div className="space-y-2">
-          <label className="flex items-center gap-2 text-xs text-muted-foreground uppercase tracking-widest font-semibold">
-            <Image className="w-3.5 h-3.5" />
-            رابط الصورة الشخصية (اختياري)
-          </label>
-          <input
-            value={avatarUrl}
-            onChange={(e) => setAvatarUrl(e.target.value)}
-            placeholder="https://..."
-            dir="ltr"
-            className="w-full bg-card border border-border px-3 py-2.5 text-sm focus:outline-none focus:border-primary transition-colors"
-          />
-          <p className="text-xs text-muted-foreground">
-            اتركه فارغاً لاستخدام صورة حسابك
           </p>
         </div>
 

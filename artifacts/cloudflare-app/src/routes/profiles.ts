@@ -1,8 +1,25 @@
 import { Hono } from "hono";
 import { eq, and, ne } from "drizzle-orm";
+import { StorageClient } from "@supabase/storage-js";
 import { getDb, profilesTable } from "../db";
 import { getClerkAuth } from "../lib/clerkAuth";
 import type { Bindings, Variables } from "../env.d";
+
+const BUCKET = "uploads";
+
+function getStorage(env: Bindings) {
+  return new StorageClient(`${env.SUPABASE_URL}/storage/v1`, {
+    apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+    Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+  });
+}
+
+function extname(filename: string): string {
+  const idx = filename.lastIndexOf(".");
+  return idx === -1 ? "" : filename.slice(idx).toLowerCase();
+}
+
+const ALLOWED_AVATAR_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp"]);
 
 const profiles = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -84,6 +101,42 @@ profiles.put("/profiles/me", async (c) => {
     .returning();
 
   return c.json(updated);
+});
+
+// ── Upload avatar image ───────────────────────────────────────────────────────
+profiles.post("/profiles/avatar", async (c) => {
+  const userId = await getClerkAuth(c);
+  if (!userId) return c.json({ error: "Unauthorized" }, 401);
+
+  const body = await c.req.parseBody();
+  const file = body["avatar"];
+
+  if (!file || !(file instanceof File)) return c.json({ error: "No image uploaded" }, 400);
+
+  const ext = extname(file.name);
+  if (!ALLOWED_AVATAR_EXTENSIONS.has(ext)) {
+    return c.json({ error: `Unsupported image type. Allowed: ${[...ALLOWED_AVATAR_EXTENSIONS].join(", ")}` }, 400);
+  }
+
+  const filename = `avatars/${userId}-${Date.now()}${ext}`;
+  const storage = getStorage(c.env);
+  const { error } = await storage.from(BUCKET).upload(filename, new Blob([await file.arrayBuffer()]), {
+    contentType: file.type || "image/jpeg",
+    upsert: true,
+  });
+
+  if (error) return c.json({ error: "Upload failed: " + error.message }, 500);
+
+  const { data } = storage.from(BUCKET).getPublicUrl(filename);
+
+  // Update profile avatarUrl
+  const db = getDb(c.env.DATABASE_URL);
+  const [existing] = await db.select().from(profilesTable).where(eq(profilesTable.userId, userId));
+  if (existing) {
+    await db.update(profilesTable).set({ avatarUrl: data.publicUrl, updatedAt: new Date() }).where(eq(profilesTable.userId, userId));
+  }
+
+  return c.json({ url: data.publicUrl });
 });
 
 profiles.get("/profiles/check-username", async (c) => {
