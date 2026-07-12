@@ -1,6 +1,7 @@
 export type Bindings = {
   ASSETS: Fetcher;
-  UPLOADS: R2Bucket;
+  SUPABASE_URL: string;
+  SUPABASE_SERVICE_ROLE_KEY: string;
   DATABASE_URL: string;
   CLERK_SECRET_KEY: string;
   CLERK_PUBLISHABLE_KEY: string;

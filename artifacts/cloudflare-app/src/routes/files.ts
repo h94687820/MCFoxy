@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { eq, and, or, ilike } from "drizzle-orm";
+import { StorageClient } from "@supabase/storage-js";
 import { getDb, filesTable } from "../db";
 import { requireAuth } from "../lib/clerkAuth";
 import {
@@ -8,6 +9,15 @@ import {
   DeleteFileParams,
 } from "@workspace/api-zod";
 import type { Bindings, Variables } from "../env.d";
+
+const BUCKET = "uploads";
+
+function getStorage(env: Bindings) {
+  return new StorageClient(`${env.SUPABASE_URL}/storage/v1`, {
+    apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+    Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+  });
+}
 
 const files = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -161,16 +171,18 @@ files.post("/files/upload", requireAuth, async (c) => {
     }
     if (!isNsfw) {
       const filename = uniqueFilename(img.name);
-      await c.env.UPLOADS.put(`images/${filename}`, await img.arrayBuffer(), {
-        httpMetadata: { contentType: img.type || "application/octet-stream" },
+      const storage = getStorage(c.env);
+      await storage.from(BUCKET).upload(`images/${filename}`, new Blob([await img.arrayBuffer()]), {
+        contentType: img.type || "application/octet-stream",
       });
       cleanImageNames.push(filename);
     }
   }
 
   const mainKey = `files/${uniqueFilename(mainFile.name)}`;
-  await c.env.UPLOADS.put(mainKey, await mainFile.arrayBuffer(), {
-    httpMetadata: { contentType: mainFile.type || "application/octet-stream" },
+  const mainStorage = getStorage(c.env);
+  await mainStorage.from(BUCKET).upload(mainKey, new Blob([await mainFile.arrayBuffer()]), {
+    contentType: mainFile.type || "application/octet-stream",
   });
 
   const [inserted] = await db
@@ -194,7 +206,7 @@ files.post("/files/upload", requireAuth, async (c) => {
   const apiKey = c.env.VIRUSTOTAL_API_KEY;
   if (apiKey) {
     c.executionCtx.waitUntil(
-      performScan(db, c.env.UPLOADS, inserted.id, mainKey, apiKey).catch(async (err) => {
+      performScan(db, c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_ROLE_KEY, inserted.id, mainKey, apiKey).catch(async (err) => {
         const msg = String(err);
         const isRateLimit = msg.includes("rate") || msg.includes("429");
         await db
@@ -235,10 +247,11 @@ files.patch("/files/:id", requireAuth, async (c) => {
   );
 
   const newImageNames: string[] = [];
+  const patchStorage = getStorage(c.env);
   for (const img of newImages) {
     const filename = uniqueFilename(img.name);
-    await c.env.UPLOADS.put(`images/${filename}`, await img.arrayBuffer(), {
-      httpMetadata: { contentType: img.type || "application/octet-stream" },
+    await patchStorage.from(BUCKET).upload(`images/${filename}`, new Blob([await img.arrayBuffer()]), {
+      contentType: img.type || "application/octet-stream",
     });
     newImageNames.push(filename);
   }
@@ -265,21 +278,20 @@ files.get("/files/:id/download", async (c) => {
   const [file] = await db.select().from(filesTable).where(eq(filesTable.id, parseResult.data.id));
   if (!file) return c.json({ error: "Not found" }, 404);
 
-  const object = await c.env.UPLOADS.get(file.filePath);
-  if (!object) return c.json({ error: "File not found in storage" }, 404);
+  const { data: blob, error: dlError } = await getStorage(c.env).from(BUCKET).download(file.filePath);
+  if (dlError || !blob) return c.json({ error: "File not found in storage" }, 404);
 
   c.header("Content-Disposition", `attachment; filename="${encodeURIComponent(file.originalName)}"`);
   c.header("Content-Type", "application/octet-stream");
   c.header("Content-Length", String(file.size));
-  return c.body(object.body as unknown as ReadableStream);
+  return c.body(blob.stream() as unknown as ReadableStream);
 });
 
-// ── Serve images (public) ────────────────────────────────────────────────────
+// ── Serve images (redirect to Supabase public URL) ───────────────────────────
+// Requires the "uploads" bucket to be set to PUBLIC in Supabase dashboard.
 files.get("/uploads/images/:name", async (c) => {
-  const object = await c.env.UPLOADS.get(`images/${c.req.param("name")}`);
-  if (!object) return c.json({ error: "Not found" }, 404);
-  c.header("Content-Type", object.httpMetadata?.contentType ?? "application/octet-stream");
-  return c.body(object.body as unknown as ReadableStream);
+  const { data } = getStorage(c.env).from(BUCKET).getPublicUrl(`images/${c.req.param("name")}`);
+  return Response.redirect(data.publicUrl, 302);
 });
 
 // ── Get file ──────────────────────────────────────────────────────────────────
@@ -305,10 +317,10 @@ files.delete("/files/:id", requireAuth, async (c) => {
   if (!file) return c.json({ error: "Not found" }, 404);
   if (file.uploadedBy !== userId) return c.json({ error: "Forbidden — you can only delete your own files" }, 403);
 
-  await c.env.UPLOADS.delete(file.filePath);
-  for (const imgName of file.images ?? []) {
-    await c.env.UPLOADS.delete(`images/${imgName}`);
-  }
+  const delStorage = getStorage(c.env);
+  await delStorage.from(BUCKET).remove([file.filePath]);
+  const imgKeys = (file.images ?? []).map((n) => `images/${n}`);
+  if (imgKeys.length) await delStorage.from(BUCKET).remove(imgKeys);
   await db.delete(filesTable).where(eq(filesTable.id, parseResult.data.id));
 
   return c.body(null, 204);
@@ -316,14 +328,19 @@ files.delete("/files/:id", requireAuth, async (c) => {
 
 async function performScan(
   db: ReturnType<typeof getDb>,
-  bucket: R2Bucket,
+  supabaseUrl: string,
+  supabaseKey: string,
   fileId: number,
   key: string,
   apiKey: string,
 ) {
-  const object = await bucket.get(key);
-  if (!object) throw new Error("File missing from storage");
-  const fileBuffer = await object.arrayBuffer();
+  const storage = new StorageClient(`${supabaseUrl}/storage/v1`, {
+    apikey: supabaseKey,
+    Authorization: `Bearer ${supabaseKey}`,
+  });
+  const { data: blob, error } = await storage.from(BUCKET).download(key);
+  if (error || !blob) throw new Error("File missing from storage");
+  const fileBuffer = await blob.arrayBuffer();
 
   const formData = new FormData();
   formData.append("file", new Blob([fileBuffer]), key.split("/").pop());
@@ -367,10 +384,8 @@ async function performScan(
     if (malicious > 0) {
       const [file] = await db.select().from(filesTable).where(eq(filesTable.id, fileId));
       if (file) {
-        await bucket.delete(file.filePath);
-        for (const imgName of file.images ?? []) {
-          await bucket.delete(`images/${imgName}`);
-        }
+        const keys = [file.filePath, ...(file.images ?? []).map((n) => `images/${n}`)];
+        await storage.from(BUCKET).remove(keys);
         await db.delete(filesTable).where(eq(filesTable.id, fileId));
       }
     } else {
