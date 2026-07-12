@@ -1,0 +1,30 @@
+2026-07-12T06:32:35.091Z artifacts/minecraft-hub build: dist/public/index.html                   1.60 kB │ gzip:   0.66 kB
+2026-07-12T06:32:35.092Z artifacts/minecraft-hub build: dist/public/assets/index-5LUFMr4Z.css  107.72 kB │ gzip:  17.11 kB
+2026-07-12T06:32:35.092Z artifacts/minecraft-hub build: dist/public/assets/index-1lJoC0WJ.js   621.06 kB │ gzip: 190.05 kB
+2026-07-12T06:32:35.094Z artifacts/minecraft-hub build: ✓ built in 7.05s
+2026-07-12T06:32:35.094Z artifacts/minecraft-hub build: 
+2026-07-12T06:32:35.094Z artifacts/minecraft-hub build: (!) Some chunks are larger than 500 kB after minification. Consider:
+2026-07-12T06:32:35.095Z artifacts/minecraft-hub build: - Using dynamic import() to code-split the application
+2026-07-12T06:32:35.095Z artifacts/minecraft-hub build: - Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+2026-07-12T06:32:35.095Z artifacts/minecraft-hub build: - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+2026-07-12T06:32:38.804Z artifacts/minecraft-hub build: PWA v1.3.0
+2026-07-12T06:32:38.806Z artifacts/minecraft-hub build: mode      generateSW
+2026-07-12T06:32:38.807Z artifacts/minecraft-hub build: precache  12 entries (737.84 KiB)
+2026-07-12T06:32:38.807Z artifacts/minecraft-hub build: files generated
+2026-07-12T06:32:38.807Z artifacts/minecraft-hub build:   dist/public/sw.js
+2026-07-12T06:32:38.807Z artifacts/minecraft-hub build:   dist/public/workbox-e4022e15.js
+2026-07-12T06:32:38.954Z artifacts/minecraft-hub build: Done
+2026-07-12T06:32:38.996Z Success: Build command completed
+2026-07-12T06:32:39.589Z Executing user deploy command: npx wrangler deploy
+2026-07-12T06:32:43.995Z npm warn exec The following package was not found and will be installed: wrangler@4.110.0
+2026-07-12T06:32:53.930Z 
+2026-07-12T06:32:53.931Z  ⛅️ wrangler 4.110.0
+2026-07-12T06:32:53.931Z ────────────────────
+2026-07-12T06:32:54.629Z 
+2026-07-12T06:32:54.630Z Cloudflare collects anonymous telemetry about your usage of Wrangler. Learn more at https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler/telemetry.md
+2026-07-12T06:32:54.630Z 
+2026-07-12T06:32:54.697Z ✘ [ERROR] The Cloudflare application detection logic has been run in the root of a workspace instead of targeting a specific project. Change your working directory to one of the applications in the workspace and try again.
+2026-07-12T06:32:54.697Z 
+2026-07-12T06:32:54.697Z 
+2026-07-12T06:32:54.739Z 🪵  Logs were written to "/opt/buildhome/.config/.wrangler/logs/wrangler-2026-07-12_06-32-53_478.log"
+2026-07-12T06:32:54.842Z Failed: error occurred while running deploy command
