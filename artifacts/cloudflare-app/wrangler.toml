@@ -15,4 +15,4 @@ not_found_handling = "single-page-application"
 # SUPABASE_URL is not a secret and can be committed.
 [vars]
 NODE_ENV = "production"
-SUPABASE_URL = ""  # <-- ضع رابط مشروع Supabase هنا مثل: https://xxxx.supabase.co
+SUPABASE_URL = "https://ofaucvabdfaknojoaivq.supabase.co"
