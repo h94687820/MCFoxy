@@ -12,6 +12,7 @@ import {
 } from "@workspace/api-client-react";
 import { CheckCircle, XCircle, Loader2, User, AtSign, FileText, Camera, AlertCircle, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/contexts/language-context";
 
 function useDebounce<T>(value: T, delay: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -26,6 +27,7 @@ export default function ProfilePage() {
   const { user, isLoaded } = useUser();
   const [, setLocation] = useLocation();
   const qc = useQueryClient();
+  const { t } = useLanguage();
 
   const { data: profile, isLoading } = useGetMyProfile({
     query: { queryKey: getGetMyProfileQueryKey(), enabled: !!user },
@@ -136,13 +138,13 @@ export default function ProfilePage() {
     <div className="p-6 md:p-8 max-w-xl">
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-8 flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">الملف الشخصي</h1>
-          <p className="text-sm text-muted-foreground mt-1">تعديل معلوماتك الشخصية</p>
+          <h1 className="text-2xl font-bold tracking-tight">{t.profile.title}</h1>
+          <p className="text-sm text-muted-foreground mt-1">{t.profile.subtitle}</p>
         </div>
         {saved && (
           <motion.div initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-1.5 text-xs text-green-400">
             <CheckCircle className="w-3.5 h-3.5" />
-            تم الحفظ
+            {t.profile.saved}
           </motion.div>
         )}
       </motion.div>
@@ -193,7 +195,7 @@ export default function ProfilePage() {
               className="text-xs text-primary hover:underline mt-1 flex items-center gap-1"
             >
               <Upload className="w-3 h-3" />
-              {avatarUploading ? "جار الرفع..." : "تغيير الصورة"}
+              {avatarUploading ? t.profile.uploading : t.profile.changePhoto}
             </button>
           </div>
         </div>
@@ -208,12 +210,12 @@ export default function ProfilePage() {
         <div className="space-y-2">
           <label className="flex items-center gap-2 text-xs text-muted-foreground uppercase tracking-widest font-semibold">
             <User className="w-3.5 h-3.5" />
-            الاسم المعروض
+            {t.profile.displayName}
           </label>
           <input
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="اسمك كما يظهر للآخرين"
+            placeholder={t.profile.displayNamePlaceholder}
             maxLength={50}
             className="w-full bg-card border border-border px-3 py-2.5 text-sm focus:outline-none focus:border-primary transition-colors"
           />
@@ -223,13 +225,13 @@ export default function ProfilePage() {
         <div className="space-y-2">
           <label className="flex items-center gap-2 text-xs text-muted-foreground uppercase tracking-widest font-semibold">
             <AtSign className="w-3.5 h-3.5" />
-            المعرّف الفريد (Username)
+            {t.profile.usernameLabel}
           </label>
           <div className="relative">
             <input
               value={username}
               onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-zA-Z0-9_-]/g, ""))}
-              placeholder="my_username"
+              placeholder={t.profile.usernamePlaceholder}
               maxLength={20}
               dir="ltr"
               className={cn(
@@ -253,13 +255,13 @@ export default function ProfilePage() {
           </div>
           <p className="text-xs text-muted-foreground">
             {usernameChanged && usernameCheck?.available === false
-              ? "❌ هذا المعرّف محجوز، جرّب آخر"
+              ? t.profile.usernameTaken
               : usernameChanged && usernameCheck?.available === true
-              ? "✅ المعرّف متاح"
-              : "3–20 حرف: أحرف إنجليزية، أرقام، _ أو -"}
+              ? t.profile.usernameAvailable
+              : t.profile.usernameHint}
           </p>
           <p className="text-xs text-muted-foreground/60 font-mono" dir="ltr">
-            رابط صفحتك: /u/{username || "..."}
+            {t.profile.profileUrlLabel}{username || "..."}
           </p>
         </div>
 
@@ -267,12 +269,12 @@ export default function ProfilePage() {
         <div className="space-y-2">
           <label className="flex items-center gap-2 text-xs text-muted-foreground uppercase tracking-widest font-semibold">
             <FileText className="w-3.5 h-3.5" />
-            نبذة شخصية (اختياري)
+            {t.profile.bioLabel}
           </label>
           <textarea
             value={bio}
             onChange={(e) => setBio(e.target.value)}
-            placeholder="اكتب شيئاً عن نفسك..."
+            placeholder={t.profile.bioPlaceholder}
             rows={4}
             maxLength={300}
             className="w-full bg-card border border-border px-3 py-2.5 text-sm focus:outline-none focus:border-primary transition-colors resize-none"
@@ -300,10 +302,10 @@ export default function ProfilePage() {
           {updateMutation.isPending ? (
             <span className="flex items-center justify-center gap-2">
               <Loader2 className="w-4 h-4 animate-spin" />
-              جار الحفظ...
+              {t.profile.saving}
             </span>
           ) : (
-            "حفظ التغييرات"
+            t.profile.saveButton
           )}
         </button>
       </motion.div>

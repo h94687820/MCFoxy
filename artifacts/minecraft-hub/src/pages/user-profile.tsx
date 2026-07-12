@@ -9,14 +9,10 @@ import {
 import { User, FileBox, Shield, Download, ChevronRight } from "lucide-react";
 import { Link } from "wouter";
 import { cn } from "@/lib/utils";
+import { formatBytes } from "@/lib/format";
+import { useLanguage } from "@/contexts/language-context";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 const statusColors: Record<string, string> = {
   clean: "text-green-400 bg-green-400/10 border-green-400/20",
@@ -30,6 +26,7 @@ const statusColors: Record<string, string> = {
 export default function UserProfilePage() {
   const [, params] = useRoute("/u/:username");
   const username = params?.username ?? "";
+  const { t } = useLanguage();
 
   const { data: profile, isLoading, isError } = useGetProfileByUsername(username, {
     query: { queryKey: getGetProfileByUsernameQueryKey(username), enabled: !!username },
@@ -57,10 +54,10 @@ export default function UserProfilePage() {
       <div className="p-8 max-w-2xl">
         <div className="border border-border p-6 text-center space-y-3">
           <User className="w-10 h-10 text-muted-foreground mx-auto" />
-          <p className="font-semibold">المستخدم غير موجود</p>
-          <p className="text-sm text-muted-foreground">لا يوجد حساب بهذا المعرّف</p>
+          <p className="font-semibold">{t.userProfile.userNotFound}</p>
+          <p className="text-sm text-muted-foreground">{t.userProfile.noAccount}</p>
           <Link href="/" className="inline-block mt-2 text-xs text-primary hover:underline">
-            ← الرجوع للرئيسية
+            {t.userProfile.backToHome}
           </Link>
         </div>
       </div>
@@ -92,7 +89,7 @@ export default function UserProfilePage() {
           )}
           <div className="flex items-center gap-1.5 mt-3 text-xs text-muted-foreground">
             <FileBox className="w-3.5 h-3.5" />
-            <span>{userFiles.length} ملف مرفوع</span>
+            <span>{userFiles.length} {t.userProfile.filesUploaded}</span>
           </div>
         </div>
       </motion.div>
@@ -101,12 +98,12 @@ export default function UserProfilePage() {
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { delay: 0.1 } }}>
         <h2 className="text-xs text-muted-foreground uppercase tracking-widest font-semibold mb-3 flex items-center gap-2">
           <FileBox className="w-3.5 h-3.5" />
-          الملفات المرفوعة
+          {t.userProfile.uploadedFiles}
         </h2>
 
         {userFiles.length === 0 ? (
           <div className="border border-border p-6 text-center text-sm text-muted-foreground">
-            لا توجد ملفات بعد
+            {t.userProfile.noFilesYet}
           </div>
         ) : (
           <div className="space-y-2">
@@ -135,9 +132,9 @@ export default function UserProfilePage() {
                       {file.scanStatus === "clean" ? (
                         <span className="flex items-center gap-1">
                           <Shield className="w-2.5 h-2.5" />
-                          نظيف
+                          {t.scan.clean}
                         </span>
-                      ) : file.scanStatus === "malicious" ? "خطير" : file.scanStatus === "skipped" ? "لم يُفحص" : file.scanStatus}
+                      ) : file.scanStatus === "malicious" ? t.scan.malicious : file.scanStatus === "skipped" ? t.userProfile.notScanned : file.scanStatus}
                     </span>
                     <a
                       href={`${basePath}/api/files/${file.id}/download`}
