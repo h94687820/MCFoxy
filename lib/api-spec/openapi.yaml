@@ -300,6 +300,8 @@ components:
           type: string
         originalName:
           type: string
+        title:
+          type: ["string", "null"]
         edition:
           type: string
           enum: [java, bedrock]
@@ -314,7 +316,7 @@ components:
           type: string
         scanStatus:
           type: string
-          enum: [pending, scanning, clean, malicious, error]
+          enum: [pending, scanning, clean, malicious, error, skipped]
         scanDetails:
           type: ["string", "null"]
         scanEngine:
@@ -324,6 +326,8 @@ components:
         detectionRatio:
           type: ["string", "null"]
         description:
+          type: ["string", "null"]
+        coverImage:
           type: ["string", "null"]
         images:
           type: array
