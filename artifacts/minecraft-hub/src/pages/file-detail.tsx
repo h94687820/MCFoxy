@@ -43,6 +43,7 @@ function ScanStatusBadge({ status }: { status: string }) {
     clean: { label: "Clean", className: "bg-green-500/20 text-green-400" },
     malicious: { label: "Malicious", className: "bg-red-500/20 text-red-400" },
     error: { label: "Scan Error", className: "bg-orange-500/20 text-orange-400" },
+    skipped: { label: "Not Scanned (small file)", className: "bg-blue-500/20 text-blue-400" },
   };
   const s = map[status] ?? map.pending;
   return (

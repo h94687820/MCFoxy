@@ -102,6 +102,7 @@ files.post("/files/upload", requireAuth, async (c) => {
   const body = await c.req.parseBody({ all: true });
 
   const mainFile = body["file"] as File | undefined;
+  const coverImageFile = body["coverImage"] as File | undefined;
   const rawImages = body["images"];
   const imageFiles = (Array.isArray(rawImages) ? rawImages : rawImages ? [rawImages] : []).filter(
     (f): f is File => f instanceof File,
@@ -113,6 +114,7 @@ files.post("/files/upload", requireAuth, async (c) => {
   const edition = body["edition"] as string | undefined;
   const description = body["description"] as string | undefined;
   const customId = body["customId"] as string | undefined;
+  const title = body["title"] as string | undefined;
 
   if (!type || !["mod", "map"].includes(type)) {
     return c.json({ error: "type must be 'mod' or 'map'" }, 400);
@@ -127,6 +129,10 @@ files.post("/files/upload", requireAuth, async (c) => {
       { error: "customId must be 3–50 chars: lowercase letters, numbers, and hyphens only" },
       400,
     );
+  }
+
+  if (!title || !title.trim()) {
+    return c.json({ error: "title is required" }, 400);
   }
 
   const [existing] = await db.select({ id: filesTable.id }).from(filesTable).where(eq(filesTable.customId, customId));
@@ -147,31 +153,48 @@ files.post("/files/upload", requireAuth, async (c) => {
   // `images` stores bare filenames (not full R2 keys) to match the frontend's
   // `${base}/api/uploads/images/${imgName}` URL construction; the "images/"
   // prefix is applied when reading/writing R2.
-  const cleanImageNames: string[] = [];
   const deepAiKey = c.env.DEEPAI_API_KEY;
+
+  async function checkNsfw(img: File): Promise<boolean> {
+    if (!deepAiKey) return false;
+    try {
+      const fd = new FormData();
+      fd.append("image", img, img.name);
+      const modResp = await fetch("https://api.deepai.org/api/nsfw-detector", {
+        method: "POST",
+        headers: { "api-key": deepAiKey },
+        body: fd,
+      });
+      if (modResp.ok) {
+        const modData = (await modResp.json()) as { output?: { nsfw_score?: number } };
+        return (modData?.output?.nsfw_score ?? 0) > 0.7;
+      }
+    } catch {
+      // fall through to not-nsfw
+    }
+    return false;
+  }
+
+  const storage = getStorage(c.env);
+
+  let coverImageName: string | null = null;
+  if (coverImageFile && coverImageFile instanceof File && ALLOWED_IMAGE_EXTENSIONS.has(extname(coverImageFile.name))) {
+    const coverIsNsfw = await checkNsfw(coverImageFile);
+    if (!coverIsNsfw) {
+      const filename = uniqueFilename(coverImageFile.name);
+      await storage.from(BUCKET).upload(`images/${filename}`, new Blob([await coverImageFile.arrayBuffer()]), {
+        contentType: coverImageFile.type || "application/octet-stream",
+      });
+      coverImageName = filename;
+    }
+  }
+
+  const cleanImageNames: string[] = [];
   for (const img of imageFiles) {
     if (!ALLOWED_IMAGE_EXTENSIONS.has(extname(img.name))) continue;
-    let isNsfw = false;
-    if (deepAiKey) {
-      try {
-        const fd = new FormData();
-        fd.append("image", img, img.name);
-        const modResp = await fetch("https://api.deepai.org/api/nsfw-detector", {
-          method: "POST",
-          headers: { "api-key": deepAiKey },
-          body: fd,
-        });
-        if (modResp.ok) {
-          const modData = (await modResp.json()) as { output?: { nsfw_score?: number } };
-          isNsfw = (modData?.output?.nsfw_score ?? 0) > 0.7;
-        }
-      } catch {
-        isNsfw = false;
-      }
-    }
+    const isNsfw = await checkNsfw(img);
     if (!isNsfw) {
       const filename = uniqueFilename(img.name);
-      const storage = getStorage(c.env);
       await storage.from(BUCKET).upload(`images/${filename}`, new Blob([await img.arrayBuffer()]), {
         contentType: img.type || "application/octet-stream",
       });
@@ -191,6 +214,7 @@ files.post("/files/upload", requireAuth, async (c) => {
       customId,
       name: mainKey,
       originalName: mainFile.name,
+      title: title.trim(),
       edition,
       type,
       size: mainFile.size,
@@ -198,6 +222,7 @@ files.post("/files/upload", requireAuth, async (c) => {
       filePath: mainKey,
       scanStatus: "pending",
       description: description ?? null,
+      coverImage: coverImageName,
       images: cleanImageNames,
       uploadedBy: userId,
     })
@@ -241,10 +266,12 @@ files.patch("/files/:id", requireAuth, async (c) => {
 
   const body = await c.req.parseBody({ all: true });
   const description = body["description"] as string | undefined;
+  const title = body["title"] as string | undefined;
   const rawImages = body["images"];
   const newImages = (Array.isArray(rawImages) ? rawImages : rawImages ? [rawImages] : []).filter(
     (f): f is File => f instanceof File,
   );
+  const newCoverImage = body["coverImage"] as File | undefined;
 
   const newImageNames: string[] = [];
   const patchStorage = getStorage(c.env);
@@ -257,9 +284,22 @@ files.patch("/files/:id", requireAuth, async (c) => {
   }
   const existingImages = file.images ?? [];
 
+  let newCoverImageName: string | null = null;
+  if (newCoverImage && newCoverImage instanceof File) {
+    newCoverImageName = uniqueFilename(newCoverImage.name);
+    await patchStorage.from(BUCKET).upload(`images/${newCoverImageName}`, new Blob([await newCoverImage.arrayBuffer()]), {
+      contentType: newCoverImage.type || "application/octet-stream",
+    });
+    if (file.coverImage) {
+      await patchStorage.from(BUCKET).remove([`images/${file.coverImage}`]);
+    }
+  }
+
   const [updated] = await db
     .update(filesTable)
     .set({
+      title: title !== undefined && title.trim() ? title.trim() : file.title,
+      coverImage: newCoverImageName ?? file.coverImage,
       description: description !== undefined ? description : file.description,
       images: [...existingImages, ...newImageNames],
     })

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "node ./scripts/dev-vars.mjs && wrangler dev --port ${PORT:-8787} --ip 0.0.0.0",
-    "build": "pnpm --filter @workspace/minecraft-hub run build",
+    "build": "VITE_CLERK_PROXY_URL=https://minecraft-hub.mcfoxy.workers.dev/api/__clerk pnpm --filter @workspace/minecraft-hub run build",
     "deploy": "pnpm run build && wrangler deploy",
     "db:push": "drizzle-kit push --config ./drizzle.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"

@@ -91,6 +91,7 @@ export const translations = {
       clean: "Clean",
       malicious: "Malicious",
       unverified: "Unverified",
+      skipped: "Not Scanned (small file)",
     },
     fileDetail: {
       notFound: "File not found",
@@ -197,6 +198,7 @@ export const translations = {
       clean: "نظيف",
       malicious: "خطير",
       unverified: "غير مفحوص",
+      skipped: "لم يتم الفحص (ملف صغير)",
     },
     fileDetail: {
       notFound: "الملف غير موجود",
@@ -303,6 +305,7 @@ export const translations = {
       clean: "Sain",
       malicious: "Malveillant",
       unverified: "Non vérifié",
+      skipped: "Non analysé (petit fichier)",
     },
     fileDetail: {
       notFound: "Fichier introuvable",
@@ -409,6 +412,7 @@ export const translations = {
       clean: "Sauber",
       malicious: "Schädlich",
       unverified: "Nicht verifiziert",
+      skipped: "Nicht gescannt (kleine Datei)",
     },
     fileDetail: {
       notFound: "Datei nicht gefunden",

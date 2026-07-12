@@ -24,6 +24,7 @@ const statusColors: Record<string, string> = {
   scanning: "text-yellow-400 bg-yellow-400/10 border-yellow-400/20",
   pending: "text-muted-foreground bg-muted/30 border-border",
   error: "text-orange-400 bg-orange-400/10 border-orange-400/20",
+  skipped: "text-blue-400 bg-blue-400/10 border-blue-400/20",
 };
 
 export default function UserProfilePage() {
@@ -136,7 +137,7 @@ export default function UserProfilePage() {
                           <Shield className="w-2.5 h-2.5" />
                           نظيف
                         </span>
-                      ) : file.scanStatus === "malicious" ? "خطير" : file.scanStatus}
+                      ) : file.scanStatus === "malicious" ? "خطير" : file.scanStatus === "skipped" ? "لم يُفحص" : file.scanStatus}
                     </span>
                     <a
                       href={`${basePath}/api/files/${file.id}/download`}

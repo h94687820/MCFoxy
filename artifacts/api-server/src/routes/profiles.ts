@@ -1,4 +1,7 @@
 import { Router } from "express";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
 import { getAuth } from "@clerk/express";
 import { db, profilesTable } from "@workspace/db";
 import { eq, and, ne } from "drizzle-orm";
@@ -6,6 +9,65 @@ import { eq, and, ne } from "drizzle-orm";
 const router = Router();
 
 const USERNAME_RE = /^[a-zA-Z0-9_-]{3,20}$/;
+
+// ── Avatar upload ────────────────────────────────────────────────────────
+// The frontend (profile page) posts here directly — this route was missing,
+// which meant every avatar upload silently failed with a 404 HTML page and
+// the profile's avatarUrl in the DB was never updated. That's why a chosen
+// avatar only ever appeared on the profile page itself (from local state)
+// and never anywhere else in the app (sidebar, mod cards, etc. all read the
+// persisted profile.avatarUrl from the database).
+const uploadsDir = path.join(process.cwd(), "uploads");
+const avatarsDir = path.join(uploadsDir, "avatars");
+if (!fs.existsSync(avatarsDir)) {
+  fs.mkdirSync(avatarsDir, { recursive: true });
+}
+
+const avatarUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, avatarsDir),
+    filename: (_req, file, cb) => {
+      const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+      const ext = path.extname(file.originalname);
+      cb(null, `${unique}${ext}`);
+    },
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = [".jpg", ".jpeg", ".png", ".gif", ".webp"];
+    cb(null, allowed.includes(path.extname(file.originalname).toLowerCase()));
+  },
+});
+
+router.post("/profiles/avatar", avatarUpload.single("avatar"), async (req, res) => {
+  const { userId } = getAuth(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+  if (!req.file) {
+    return res.status(400).json({ error: "No avatar file uploaded, or file type not allowed" });
+  }
+
+  const url = `/api/uploads/avatars/${req.file.filename}`;
+
+  const [existing] = await db
+    .select()
+    .from(profilesTable)
+    .where(eq(profilesTable.userId, userId));
+
+  if (!existing) {
+    await db.insert(profilesTable).values({
+      userId,
+      username: `user_${userId.slice(-8)}`,
+      avatarUrl: url,
+    });
+  } else {
+    await db
+      .update(profilesTable)
+      .set({ avatarUrl: url, updatedAt: new Date() })
+      .where(eq(profilesTable.userId, userId));
+  }
+
+  return res.json({ url });
+});
 
 router.get("/profiles/me", async (req, res) => {
   const { userId } = getAuth(req);
