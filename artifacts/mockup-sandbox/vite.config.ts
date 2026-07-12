@@ -9,25 +9,14 @@ const rawPort = process.env.PORT;
 
 const DEFAULT_PORT = 5173;
 
-let port = DEFAULT_PORT;
+const parsedPort = rawPort ? Number(rawPort) : NaN;
 
-if (rawPort) {
-  const parsedPort = Number(rawPort);
+const port =
+  rawPort && !Number.isNaN(parsedPort) && parsedPort > 0
+    ? parsedPort
+    : DEFAULT_PORT;
 
-  if (Number.isNaN(parsedPort) || parsedPort <= 0) {
-    throw new Error(`Invalid PORT value: "${rawPort}"`);
-  }
-
-  port = parsedPort;
-}
-
-const basePath = process.env.BASE_PATH;
-
-if (!basePath) {
-  throw new Error(
-    "BASE_PATH environment variable is required but was not provided.",
-  );
-}
+const basePath = process.env.BASE_PATH || "/";
 
 export default defineConfig({
   base: basePath,
