@@ -15,4 +15,5 @@ export const UploadedFileScanStatus = {
   clean: 'clean',
   malicious: 'malicious',
   error: 'error',
+  skipped: 'skipped',
 } as const;

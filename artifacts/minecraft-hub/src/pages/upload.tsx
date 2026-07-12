@@ -43,15 +43,19 @@ export default function UploadPage() {
   const [edition, setEdition] = useState<Edition>("java");
   const [fileType, setFileType] = useState<FileType>("mod");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [title, setTitle] = useState("");
+  const [titleError, setTitleError] = useState<string>("");
   const [customId, setCustomId] = useState("");
   const [customIdError, setCustomIdError] = useState<string>("");
   const [description, setDescription] = useState("");
+  const [coverImage, setCoverImage] = useState<File | null>(null);
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [uploadState, setUploadState] = useState<UploadState>("idle");
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
 
   function handleEditionChange(e: Edition) {
     setEdition(e);
@@ -77,6 +81,24 @@ export default function UploadPage() {
       return false;
     }
     return true;
+  }
+
+  function validateTitle(): boolean {
+    if (!title.trim()) {
+      setTitleError("Title is required");
+      return false;
+    }
+    return true;
+  }
+
+  function handleCoverImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) setCoverImage(file);
+  }
+
+  function removeCoverImage() {
+    setCoverImage(null);
+    if (coverInputRef.current) coverInputRef.current.value = "";
   }
 
   const handleFile = useCallback((file: File) => {
@@ -110,6 +132,7 @@ export default function UploadPage() {
 
   async function handleUpload() {
     if (!selectedFile) return;
+    if (!validateTitle()) return;
     if (!validateCustomId()) return;
 
     setUploadState("uploading");
@@ -118,11 +141,15 @@ export default function UploadPage() {
     try {
       const formData = new FormData();
       formData.append("file", selectedFile);
+      formData.append("title", title.trim());
       formData.append("type", fileType);
       formData.append("edition", edition);
       formData.append("customId", customId);
       if (description.trim()) {
         formData.append("description", description.trim());
+      }
+      if (coverImage) {
+        formData.append("coverImage", coverImage);
       }
       selectedImages.forEach((img) => formData.append("images", img));
 
@@ -146,12 +173,16 @@ export default function UploadPage() {
 
       setTimeout(() => {
         setSelectedFile(null);
+        setTitle("");
+        setTitleError("");
         setCustomId("");
         setCustomIdError("");
         setDescription("");
+        setCoverImage(null);
         setSelectedImages([]);
         setUploadState("idle");
         if (fileInputRef.current) fileInputRef.current.value = "";
+        if (coverInputRef.current) coverInputRef.current.value = "";
       }, 2500);
     } catch (err) {
       setUploadState("error");
@@ -167,7 +198,7 @@ export default function UploadPage() {
   }
 
   const customIdValid = CUSTOM_ID_REGEX.test(customId);
-  const canUpload = !!selectedFile && customIdValid && uploadState !== "uploading" && uploadState !== "success";
+  const canUpload = !!selectedFile && !!title.trim() && customIdValid && uploadState !== "uploading" && uploadState !== "success";
 
   const uploadBtnLabel = () => {
     if (uploadState === "uploading") return <><Loader2 className="w-4 h-4 mr-2 animate-spin" />{t.upload.uploadingButton}</>;
@@ -290,6 +321,30 @@ export default function UploadPage() {
           </p>
         </div>
 
+        {/* Step 3.5: Title */}
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">Title</p>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => { setTitle(e.target.value); setTitleError(""); }}
+            onBlur={() => !title.trim() && setTitleError("Title is required")}
+            placeholder="Give your file a name shown to other users"
+            maxLength={100}
+            data-testid="input-title"
+            className={cn(
+              "w-full bg-card border text-sm text-foreground placeholder:text-muted-foreground px-3 py-3 focus:outline-none transition-colors",
+              titleError ? "border-red-500/60 focus:border-red-500" : "border-border focus:border-primary/60"
+            )}
+          />
+          {titleError && (
+            <p className="text-xs text-red-400 mt-1.5 flex items-center gap-1">
+              <AlertCircle className="w-3 h-3 flex-shrink-0" />
+              {titleError}
+            </p>
+          )}
+        </div>
+
         {/* Step 4: Custom ID */}
         <div>
           <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1">{t.upload.stepCustomId}</p>
@@ -336,6 +391,40 @@ export default function UploadPage() {
             rows={3}
             className="w-full bg-card border border-border text-sm text-foreground placeholder:text-muted-foreground p-3 resize-none focus:outline-none focus:border-primary/60 transition-colors"
           />
+        </div>
+
+        {/* Step 5.5: Cover Image */}
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">
+            Cover Image <span className="normal-case font-normal">{t.upload.stepImagesOptional}</span>
+          </p>
+          {coverImage ? (
+            <div className="relative group aspect-video bg-card border border-border overflow-hidden max-w-xs">
+              <img src={URL.createObjectURL(coverImage)} alt="Cover preview" className="w-full h-full object-cover" />
+              <button
+                onClick={removeCoverImage}
+                className="absolute top-1 right-1 w-5 h-5 bg-black/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <X className="w-3 h-3 text-white" />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => coverInputRef.current?.click()}
+              className="flex items-center gap-2 px-4 py-2.5 border border-dashed border-border hover:border-primary/50 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <ImagePlus className="w-4 h-4" />
+              Add a cover image
+            </button>
+          )}
+          <input
+            ref={coverInputRef}
+            type="file"
+            accept=".jpg,.jpeg,.png,.gif,.webp"
+            className="hidden"
+            onChange={handleCoverImageChange}
+          />
+          <p className="text-xs text-muted-foreground mt-2 font-mono">The primary image shown for this file — separate from screenshots</p>
         </div>
 
         {/* Step 6: Images */}

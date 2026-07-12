@@ -5,6 +5,7 @@ import { usePWAInstall } from "@/hooks/use-pwa-install";
 import { useClerk, useUser } from "@clerk/react";
 import { useLanguage } from "@/contexts/language-context";
 import { useState, useEffect } from "react";
+import { useGetMyProfile, getGetMyProfileQueryKey } from "@workspace/api-client-react";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -18,6 +19,15 @@ export default function Layout({ children }: LayoutProps) {
   const { signOut } = useClerk();
   const { user, isLoaded } = useUser();
   const { t } = useLanguage();
+  const { data: profile } = useGetMyProfile({
+    query: { queryKey: getGetMyProfileQueryKey(), enabled: !!user },
+  });
+
+  // Prefer the app's own profile identity (avatar/display name) over Clerk's
+  // account data — Clerk holds the user's real name/email, but the app should
+  // only ever surface the public display name / username the user chose.
+  const avatarSrc = profile?.avatarUrl || user?.imageUrl;
+  const displayLabel = profile?.displayName || (profile?.username ? `@${profile.username}` : "User");
   const [installBannerDismissed, setInstallBannerDismissed] = useState(() =>
     localStorage.getItem("pwa-banner-dismissed") === "1"
   );
@@ -110,15 +120,15 @@ export default function Layout({ children }: LayoutProps) {
                   href="/profile"
                   className="flex items-center gap-2.5 px-1 hover:opacity-80 transition-opacity cursor-pointer group"
                 >
-                  {user.imageUrl ? (
-                    <img src={user.imageUrl} alt={user.fullName ?? "User"} className="w-6 h-6 rounded-full flex-shrink-0 object-cover ring-1 ring-transparent group-hover:ring-primary transition-all" />
+                  {avatarSrc ? (
+                    <img src={avatarSrc} alt={displayLabel} className="w-6 h-6 rounded-full flex-shrink-0 object-cover ring-1 ring-transparent group-hover:ring-primary transition-all" />
                   ) : (
                     <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
                       <User className="w-3 h-3 text-primary" />
                     </div>
                   )}
                   <span className="text-xs text-sidebar-foreground truncate flex-1 group-hover:text-primary transition-colors">
-                    {user.fullName ?? user.primaryEmailAddress?.emailAddress ?? "User"}
+                    {displayLabel}
                   </span>
                 </Link>
                 <button
@@ -186,8 +196,8 @@ export default function Layout({ children }: LayoutProps) {
           user ? (
             <div className="flex items-center gap-3">
               <Link href="/profile" className="flex items-center">
-                {user.imageUrl ? (
-                  <img src={user.imageUrl} alt={user.fullName ?? "User"} className="w-7 h-7 rounded-full object-cover ring-1 ring-transparent hover:ring-primary transition-all" />
+                {avatarSrc ? (
+                  <img src={avatarSrc} alt={displayLabel} className="w-7 h-7 rounded-full object-cover ring-1 ring-transparent hover:ring-primary transition-all" />
                 ) : (
                   <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center">
                     <User className="w-4 h-4 text-primary" />

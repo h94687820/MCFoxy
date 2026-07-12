@@ -34,6 +34,7 @@ export const UploadedFileScanStatus = {
   clean: 'clean',
   malicious: 'malicious',
   error: 'error',
+  skipped: 'skipped',
 } as const;
 
 export interface UploadedFile {
@@ -42,6 +43,8 @@ export interface UploadedFile {
   customId?: string | null;
   name: string;
   originalName: string;
+  /** @nullable */
+  title?: string | null;
   edition: UploadedFileEdition;
   type: UploadedFileType;
   size: number;
@@ -59,6 +62,8 @@ export interface UploadedFile {
   detectionRatio?: string | null;
   /** @nullable */
   description?: string | null;
+  /** @nullable */
+  coverImage?: string | null;
   images?: string[] | null;
   /** @nullable */
   uploadedBy?: string | null;

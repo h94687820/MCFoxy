@@ -70,15 +70,16 @@ function StatCard({ icon: Icon, label, value, color }: { icon: React.ElementType
   );
 }
 
-function FileThumbnail({ images, originalName }: { images: unknown; originalName: string }) {
+function FileThumbnail({ coverImage, images, originalName }: { coverImage?: string | null; images: unknown; originalName: string }) {
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
   const imageList = Array.isArray(images) ? (images as string[]) : [];
-  if (!imageList.length) return null;
+  const thumb = coverImage || imageList[0];
+  if (!thumb) return null;
 
   return (
     <div className="w-12 h-12 flex-shrink-0 overflow-hidden border border-border bg-card">
       <img
-        src={`${base}/api/uploads/images/${imageList[0]}`}
+        src={`${base}/api/uploads/images/${thumb}`}
         alt={originalName}
         className="w-full h-full object-cover"
         onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
@@ -108,8 +109,9 @@ function FileRow({ file }: { file: UploadedFile }) {
 
   const date = new Date(file.uploadedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
-  const hasImages = Array.isArray(file.images) && (file.images as string[]).length > 0;
+  const hasThumbnail = !!file.coverImage || (Array.isArray(file.images) && (file.images as string[]).length > 0);
   const fileWithCustomId = file as UploadedFile & { customId?: string | null };
+  const displayName = file.title || file.originalName;
 
   return (
     <motion.div
@@ -118,17 +120,17 @@ function FileRow({ file }: { file: UploadedFile }) {
       onClick={() => navigate(`/files/${file.id}`)}
       className="bg-card border border-card-border p-3 flex items-center gap-3 hover:border-primary/50 transition-colors cursor-pointer"
     >
-      {hasImages && (
-        <FileThumbnail images={file.images} originalName={file.originalName} />
+      {hasThumbnail && (
+        <FileThumbnail coverImage={file.coverImage} images={file.images} originalName={displayName} />
       )}
 
       <div className="flex-1 min-w-0">
         <p
           className="font-medium text-sm truncate"
           data-testid={`text-filename-${file.id}`}
-          title={file.originalName}
+          title={displayName}
         >
-          {file.originalName}
+          {displayName}
         </p>
         <div className="flex items-center gap-2 mt-1 flex-wrap">
           <ScanStatusBadge status={file.scanStatus} />

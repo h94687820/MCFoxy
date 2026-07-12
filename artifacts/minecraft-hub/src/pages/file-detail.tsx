@@ -2,7 +2,13 @@ import { useState, useRef } from "react";
 import { useParams } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
-import { useGetFile, useRescanFile, getListFilesQueryKey } from "@workspace/api-client-react";
+import {
+  useGetFile,
+  useRescanFile,
+  useDeleteFile,
+  getListFilesQueryKey,
+  getGetFileStatsQueryKey,
+} from "@workspace/api-client-react";
 import { useUser } from "@clerk/react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -22,6 +28,8 @@ import {
   FileX,
   Loader2,
   RotateCw,
+  Trash2,
+  Camera,
 } from "lucide-react";
 import { formatBytes } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -158,6 +166,82 @@ function ImageGallery({ images, fileId, isOwner, onImagesUpdated }: ImageGallery
   );
 }
 
+interface CoverImageProps {
+  coverImage: string | null | undefined;
+  fileId: number;
+  isOwner: boolean;
+  onUpdated: () => void;
+}
+
+function CoverImageSection({ coverImage, fileId, isOwner, onUpdated }: CoverImageProps) {
+  const [uploading, setUploading] = useState(false);
+  const coverInputRef = useRef<HTMLInputElement>(null);
+  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+  async function handleSetCover(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("coverImage", file);
+      const res = await fetch(`${base}/api/files/${fileId}`, {
+        method: "PATCH",
+        body: formData,
+      });
+      if (res.ok) onUpdated();
+    } finally {
+      setUploading(false);
+      if (coverInputRef.current) coverInputRef.current.value = "";
+    }
+  }
+
+  if (!coverImage && !isOwner) return null;
+
+  return (
+    <div className="bg-card border border-card-border p-5">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Cover Image</p>
+        {isOwner && (
+          <button
+            onClick={() => coverInputRef.current?.click()}
+            disabled={uploading}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+          >
+            {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
+            {coverImage ? "Change cover" : "Add cover image"}
+          </button>
+        )}
+        <input
+          ref={coverInputRef}
+          type="file"
+          accept=".jpg,.jpeg,.png,.gif,.webp"
+          className="hidden"
+          onChange={handleSetCover}
+        />
+      </div>
+
+      {coverImage ? (
+        <div className="aspect-video bg-background border border-border overflow-hidden">
+          <img
+            src={`${base}/api/uploads/images/${coverImage}`}
+            alt="Cover"
+            className="w-full h-full object-cover"
+          />
+        </div>
+      ) : (
+        <button
+          onClick={() => coverInputRef.current?.click()}
+          className="w-full border border-dashed border-border p-6 flex flex-col items-center gap-2 text-center hover:border-primary/50 transition-colors"
+        >
+          <ImagePlus className="w-5 h-5 text-muted-foreground" />
+          <p className="text-xs text-muted-foreground">No cover image yet — add one to feature it on the dashboard</p>
+        </button>
+      )}
+    </div>
+  );
+}
+
 interface DescriptionEditorProps {
   fileId: number;
   initialDescription: string | null | undefined;
@@ -258,6 +342,7 @@ export default function FileDetailPage() {
 
   const { data: file, isLoading, error, refetch } = useGetFile(fileId);
   const rescanMutation = useRescanFile();
+  const deleteMutation = useDeleteFile();
 
   const isOwner = !!user && !!file && file.uploadedBy === user.id;
   const canRescan = isOwner && (file?.scanStatus === "error" || file?.scanStatus === "pending");
@@ -265,6 +350,18 @@ export default function FileDetailPage() {
   function handleRescan() {
     if (!file) return;
     rescanMutation.mutate({ id: file.id }, { onSuccess: handleUpdated });
+  }
+
+  function handleDelete() {
+    if (!file) return;
+    if (!window.confirm("Delete this file permanently? This cannot be undone.")) return;
+    deleteMutation.mutate({ id: file.id }, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListFilesQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getGetFileStatsQueryKey() });
+        navigate("/");
+      },
+    });
   }
 
   function handleUpdated() {
@@ -328,9 +425,14 @@ export default function FileDetailPage() {
             <TypeIcon className="w-6 h-6 text-primary" />
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-bold tracking-tight truncate" title={file.originalName}>
-              {file.originalName}
+            <h1 className="text-xl font-bold tracking-tight truncate" title={file.title || file.originalName}>
+              {file.title || file.originalName}
             </h1>
+            {file.title && (
+              <p className="text-xs text-muted-foreground font-mono truncate mt-0.5" title={file.originalName}>
+                {file.originalName}
+              </p>
+            )}
             <div className="flex items-center gap-2 mt-1.5 flex-wrap">
               <ScanStatusBadge status={file.scanStatus} />
               {canRescan && (
@@ -352,6 +454,18 @@ export default function FileDetailPage() {
               </span>
             </div>
           </div>
+          {isOwner && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 flex-shrink-0 hover:text-destructive"
+              onClick={handleDelete}
+              disabled={deleteMutation.isPending}
+              title="Delete file"
+            >
+              {deleteMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+            </Button>
+          )}
         </div>
       </motion.div>
 
@@ -382,9 +496,17 @@ export default function FileDetailPage() {
         >
           <Button className="w-full h-11">
             <Download className="w-4 h-4 mr-2" />
-            Download {file.originalName}
+            Download {file.title || file.originalName}
           </Button>
         </a>
+
+        {/* Cover image */}
+        <CoverImageSection
+          coverImage={file.coverImage}
+          fileId={file.id}
+          isOwner={isOwner}
+          onUpdated={handleUpdated}
+        />
 
         {/* Description */}
         <div className="bg-card border border-card-border p-5">

@@ -184,8 +184,8 @@ export default function ProfilePage() {
             />
           </div>
           <div className="text-sm text-muted-foreground">
-            <p className="font-medium text-foreground">{user.fullName ?? user.primaryEmailAddress?.emailAddress}</p>
-            <p className="text-xs mt-0.5">{user.primaryEmailAddress?.emailAddress}</p>
+            <p className="font-medium text-foreground">{profile?.displayName || profile?.username}</p>
+            <p className="text-xs mt-0.5 font-mono" dir="ltr">@{profile?.username}</p>
             <button
               type="button"
               onClick={() => avatarInputRef.current?.click()}

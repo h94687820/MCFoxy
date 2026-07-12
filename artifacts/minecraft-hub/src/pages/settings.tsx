@@ -9,8 +9,11 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { Moon, Palette, CheckCircle, Languages } from "lucide-react";
+import { Moon, Palette, CheckCircle, Languages, LogOut } from "lucide-react";
 import { useLanguage, LANGUAGES, type Language } from "@/contexts/language-context";
+import { useClerk, useUser } from "@clerk/react";
+
+const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 type ThemeName = "default" | "creeper" | "nether" | "ocean" | "end" | "sky";
 
@@ -32,6 +35,8 @@ export default function SettingsPage() {
   const updateMutation = useUpdateSettings();
   const [saved, setSaved] = useState(false);
   const { t, language, setLanguage } = useLanguage();
+  const { signOut } = useClerk();
+  const { user } = useUser();
 
   function update(patch: { theme?: ThemeName; darkMode?: boolean; virusTotalEnabled?: boolean }) {
     updateMutation.mutate({ data: patch }, {
@@ -155,6 +160,30 @@ export default function SettingsPage() {
               </div>
             </div>
           </motion.div>
+
+          {/* Account */}
+          {user && (
+            <motion.div variants={item}>
+              <div className="flex items-center gap-2 mb-4">
+                <LogOut className="w-4 h-4 text-primary" />
+                <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">Account</h2>
+              </div>
+              <div className="bg-card border border-card-border p-4 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">Sign out</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Sign out of your account on this device</p>
+                </div>
+                <button
+                  onClick={() => signOut({ redirectUrl: basePath || "/" })}
+                  data-testid="button-settings-signout"
+                  className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-muted-foreground border border-border hover:border-primary/60 hover:text-primary transition-colors"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  Sign out
+                </button>
+              </div>
+            </motion.div>
+          )}
         </motion.div>
       )}
     </div>
