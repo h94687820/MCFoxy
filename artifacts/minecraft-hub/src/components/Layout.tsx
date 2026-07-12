@@ -56,9 +56,9 @@ export default function Layout({ children }: LayoutProps) {
       {/* ── Install Banner (mobile top) ─────────────────────────────────────── */}
       {showInstallBanner && (
         <div className="md:hidden fixed top-0 left-0 right-0 z-50 bg-primary text-primary-foreground flex items-center gap-3 px-4 py-3 shadow-lg">
-          <img src="/logo.svg" alt="iFoxyMC" className="w-5 h-5 flex-shrink-0" />
+          <img src="/logo.png" alt="WhiteWase" className="w-5 h-5 flex-shrink-0 rounded-sm object-cover" />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold leading-none">iFoxyMC</p>
+            <p className="text-sm font-semibold leading-none">WhiteWase</p>
             <p className="text-xs opacity-80 mt-0.5">{t.nav.install}</p>
           </div>
           <button
@@ -79,10 +79,10 @@ export default function Layout({ children }: LayoutProps) {
         <div className="p-6 border-b border-sidebar-border">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 flex items-center justify-center overflow-hidden">
-              <img src="/logo.svg" alt="iFoxyMC" className="w-9 h-9" />
+              <img src="/logo.png" alt="WhiteWase" className="w-9 h-9 rounded-md object-cover" />
             </div>
             <div>
-              <p className="font-bold text-sidebar-foreground leading-none tracking-tight">iFoxyMC</p>
+              <p className="font-bold text-sidebar-foreground leading-none tracking-tight">WhiteWase</p>
               <p className="text-xs text-muted-foreground mt-0.5 font-mono">Mods &amp; Maps Hub</p>
             </div>
           </div>
@@ -167,15 +167,15 @@ export default function Layout({ children }: LayoutProps) {
           <div className="text-xs text-muted-foreground text-center">
             by{" "}
             <a
-              href="https://youtube.com/@ifoxymc?si=jqr_ai47Vji1QdOh"
+              href="https://youtube.com/@whitewase?si=33-wgad8O3-VSyd-"
               target="_blank"
               rel="noopener noreferrer"
               className="font-semibold text-primary hover:underline"
               onError={(e) => {
-                (e.currentTarget as HTMLAnchorElement).href = "https://youtube.com/@iFoxyMC";
+                (e.currentTarget as HTMLAnchorElement).href = "https://youtube.com/@whitewase";
               }}
             >
-              iFoxyMC
+              WhiteWase
             </a>
           </div>
         </div>
@@ -188,9 +188,9 @@ export default function Layout({ children }: LayoutProps) {
       )}>
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 flex items-center justify-center overflow-hidden">
-            <img src="/logo.svg" alt="iFoxyMC" className="w-7 h-7" />
+            <img src="/logo.png" alt="WhiteWase" className="w-7 h-7 rounded-md object-cover" />
           </div>
-          <span className="font-bold text-sm tracking-tight">iFoxyMC</span>
+          <span className="font-bold text-sm tracking-tight">WhiteWase</span>
         </div>
         {isLoaded && (
           user ? (

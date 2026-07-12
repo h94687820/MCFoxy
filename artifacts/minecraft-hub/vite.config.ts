@@ -33,8 +33,8 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["favicon.svg", "icons/*.png"],
       manifest: {
-        name: "iFoxyMC — Minecraft Mods & Maps Hub",
-        short_name: "iFoxyMC",
+        name: "WhiteWase — Minecraft Mods & Maps Hub",
+        short_name: "WhiteWase",
         description: "Upload and manage Minecraft mods and maps with VirusTotal scanning",
         theme_color: "#0f172a",
         background_color: "#0f172a",
