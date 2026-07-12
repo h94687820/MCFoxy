@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { useParams } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
-import { useGetFile, getListFilesQueryKey } from "@workspace/api-client-react";
+import { useGetFile, useRescanFile, getListFilesQueryKey } from "@workspace/api-client-react";
 import { useUser } from "@clerk/react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -21,6 +21,7 @@ import {
   Calendar,
   FileX,
   Loader2,
+  RotateCw,
 } from "lucide-react";
 import { formatBytes } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -256,8 +257,15 @@ export default function FileDetailPage() {
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 
   const { data: file, isLoading, error, refetch } = useGetFile(fileId);
+  const rescanMutation = useRescanFile();
 
   const isOwner = !!user && !!file && file.uploadedBy === user.id;
+  const canRescan = isOwner && (file?.scanStatus === "error" || file?.scanStatus === "pending");
+
+  function handleRescan() {
+    if (!file) return;
+    rescanMutation.mutate({ id: file.id }, { onSuccess: handleUpdated });
+  }
 
   function handleUpdated() {
     refetch();
@@ -325,6 +333,17 @@ export default function FileDetailPage() {
             </h1>
             <div className="flex items-center gap-2 mt-1.5 flex-wrap">
               <ScanStatusBadge status={file.scanStatus} />
+              {canRescan && (
+                <button
+                  onClick={handleRescan}
+                  disabled={rescanMutation.isPending}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                  title="Retry the VirusTotal scan"
+                >
+                  <RotateCw className={cn("w-3 h-3", rescanMutation.isPending && "animate-spin")} />
+                  Retry scan
+                </button>
+              )}
               <span className="text-xs text-muted-foreground capitalize font-medium">{file.type}</span>
               <span className="text-xs text-muted-foreground">·</span>
               <span className="flex items-center gap-1 text-xs text-muted-foreground">

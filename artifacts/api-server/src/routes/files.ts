@@ -10,6 +10,7 @@ import {
   GetFileParams,
   DeleteFileParams,
 } from "@workspace/api-zod";
+import { logger } from "../lib/logger";
 
 const router = Router();
 
@@ -235,32 +236,70 @@ router.post(
       })
       .returning();
 
-    const apiKey = process.env.VIRUSTOTAL_API_KEY;
-    if (apiKey && fs.existsSync(mainFile.path)) {
-      performScan(inserted.id, mainFile.path, apiKey).catch(async (err) => {
-        const msg = String(err);
-        const isRateLimit = msg.includes("rate") || msg.includes("429");
-        await db
-          .update(filesTable)
-          .set({
-            scanStatus: isRateLimit ? "pending" : "error",
-            scanDetails: isRateLimit ? null : msg,
-          })
-          .where(eq(filesTable.id, inserted.id));
-      });
-    } else if (!apiKey) {
-      await db
-        .update(filesTable)
-        .set({
-          scanStatus: "error",
-          scanDetails: "VirusTotal API key not configured — file unverified",
-        })
-        .where(eq(filesTable.id, inserted.id));
-    }
+    startScan(inserted.id, mainFile.path);
 
     return res.status(201).json(fileToResponse(inserted));
   },
 );
+
+// ── Rescan (requires auth + ownership) — retries a failed/stuck scan ────────
+router.post("/files/:id/scan", requireAuth, async (req, res) => {
+  const userId = (req as any).userId as string;
+  const parseResult = GetFileParams.safeParse({ id: Number(req.params.id) });
+  if (!parseResult.success) return res.status(400).json({ error: "Invalid id" });
+
+  const [file] = await db.select().from(filesTable).where(eq(filesTable.id, parseResult.data.id));
+  if (!file) return res.status(404).json({ error: "Not found" });
+  if (file.uploadedBy !== userId) {
+    return res.status(403).json({ error: "Forbidden — you can only rescan your own files" });
+  }
+  if (file.scanStatus === "scanning") {
+    return res.status(409).json({ error: "A scan is already in progress for this file" });
+  }
+  if (!fs.existsSync(file.filePath)) {
+    return res.status(404).json({ error: "File not found on disk" });
+  }
+
+  startScan(file.id, file.filePath);
+
+  const [updated] = await db
+    .update(filesTable)
+    .set({ scanStatus: "scanning", scanDetails: null })
+    .where(eq(filesTable.id, file.id))
+    .returning();
+
+  return res.status(202).json(fileToResponse(updated));
+});
+
+function startScan(fileId: number, filePath: string) {
+  const apiKey = process.env.VIRUSTOTAL_API_KEY;
+  if (!apiKey) {
+    void db
+      .update(filesTable)
+      .set({
+        scanStatus: "error",
+        scanDetails: "VirusTotal API key not configured — file unverified",
+      })
+      .where(eq(filesTable.id, fileId));
+    return;
+  }
+  if (!fs.existsSync(filePath)) return;
+
+  performScan(fileId, filePath, apiKey).catch(async (err) => {
+    const msg = String(err);
+    const isRateLimit = msg.includes("rate") || msg.includes("429");
+    logger.error({ fileId, err: msg }, "VirusTotal scan failed");
+    await db
+      .update(filesTable)
+      .set({
+        scanStatus: isRateLimit ? "pending" : "error",
+        scanDetails: isRateLimit
+          ? "Rate limited by VirusTotal — will need a manual rescan"
+          : msg,
+      })
+      .where(eq(filesTable.id, fileId));
+  });
+}
 
 // ── Update description/images (requires auth + ownership) ────────────────────
 router.patch(
@@ -356,18 +395,51 @@ router.delete("/files/:id", requireAuth, async (req, res) => {
   return res.status(204).send();
 });
 
+// VirusTotal's direct /files endpoint only accepts uploads up to 32MB.
+// Larger files (Minecraft mods/maps routinely exceed this) must be sent to
+// a special, per-request upload URL fetched from /files/upload_url — this
+// was the main reason scans "always failed": every upload over 32MB got a
+// 413 from VT and was immediately marked as an error.
+const VT_DIRECT_UPLOAD_LIMIT = 32 * 1024 * 1024;
+
 async function performScan(fileId: number, filePath: string, apiKey: string) {
+  await db
+    .update(filesTable)
+    .set({ scanStatus: "scanning", scanDetails: null })
+    .where(eq(filesTable.id, fileId));
+
   const fileBuffer = fs.readFileSync(filePath);
+  const fileSize = fileBuffer.byteLength;
+
+  let uploadUrl = "https://www.virustotal.com/api/v3/files";
+  if (fileSize > VT_DIRECT_UPLOAD_LIMIT) {
+    const urlResp = await fetch("https://www.virustotal.com/api/v3/files/upload_url", {
+      headers: { "x-apikey": apiKey },
+    });
+    if (!urlResp.ok) {
+      throw new Error(`VT upload_url request failed: ${urlResp.status}`);
+    }
+    const urlData = (await urlResp.json()) as { data: string };
+    uploadUrl = urlData.data;
+  }
+
   const formData = new FormData();
   formData.append("file", new Blob([fileBuffer]), path.basename(filePath));
 
-  const uploadResp = await fetch("https://www.virustotal.com/api/v3/files", {
+  const uploadResp = await fetch(uploadUrl, {
     method: "POST",
     headers: { "x-apikey": apiKey },
     body: formData,
   });
 
-  if (!uploadResp.ok) throw new Error(`VT upload failed: ${uploadResp.status}`);
+  if (!uploadResp.ok) {
+    const body = await uploadResp.text().catch(() => "");
+    logger.error(
+      { fileId, status: uploadResp.status, body: body.slice(0, 500) },
+      "VirusTotal upload failed",
+    );
+    throw new Error(`VT upload failed: ${uploadResp.status}`);
+  }
 
   const uploadData = (await uploadResp.json()) as { data: { id: string } };
   const analysisId = uploadData.data.id;

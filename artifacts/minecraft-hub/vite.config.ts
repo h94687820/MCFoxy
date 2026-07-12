@@ -59,6 +59,13 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
+        // Without this, the SPA fallback (NavigationRoute) intercepts every
+        // top-level navigation — including clicks on <a href="/api/.../download">
+        // — and serves the cached index.html instead of hitting the network.
+        // That's why downloads were coming back as a tiny HTML file instead
+        // of the real asset. Exclude any navigation into /api/ from the
+        // fallback so it goes straight to the network.
+        navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [
           {
             urlPattern: /^.*\/api\/.*/,

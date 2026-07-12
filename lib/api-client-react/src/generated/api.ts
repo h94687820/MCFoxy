@@ -429,6 +429,76 @@ export function useDownloadFile<TData = Awaited<ReturnType<typeof downloadFile>>
 
 
 
+export const getRescanFileUrl = (id: number,) => {
+
+
+
+
+  return `/api/files/${id}/scan`
+}
+
+/**
+ * @summary Re-run the VirusTotal scan for a file (e.g. after a prior scan errored out)
+ */
+export const rescanFile = async (id: number, options?: RequestInit): Promise<UploadedFile> => {
+
+  return customFetch<UploadedFile>(getRescanFileUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getRescanFileMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rescanFile>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rescanFile>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['rescanFile'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rescanFile>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  rescanFile(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RescanFileMutationResult = NonNullable<Awaited<ReturnType<typeof rescanFile>>>
+
+    export type RescanFileMutationError = ErrorType<void>
+
+    /**
+ * @summary Re-run the VirusTotal scan for a file (e.g. after a prior scan errored out)
+ */
+export const useRescanFile = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rescanFile>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof rescanFile>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getRescanFileMutationOptions(options));
+    }
+
 export const getGetFileStatsUrl = () => {
 
 

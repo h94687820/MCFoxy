@@ -93,6 +93,14 @@ export const DownloadFileParams = zod.object({
 
 
 /**
+ * @summary Re-run the VirusTotal scan for a file (e.g. after a prior scan errored out)
+ */
+export const RescanFileParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
  * @summary Get file upload statistics
  */
 export const GetFileStatsResponse = zod.object({

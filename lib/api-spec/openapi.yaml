@@ -130,6 +130,29 @@ paths:
         "404":
           description: Not found
 
+  /files/{id}/scan:
+    post:
+      operationId: rescanFile
+      tags: [files]
+      summary: Re-run the VirusTotal scan for a file (e.g. after a prior scan errored out)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "202":
+          description: Scan started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadedFile"
+        "404":
+          description: Not found
+        "409":
+          description: A scan is already in progress for this file
+
   /files/stats:
     get:
       operationId: getFileStats
