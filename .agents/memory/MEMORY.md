@@ -2,3 +2,4 @@
 - [Clerk Auth setup](clerk-auth-setup.md) — Clerk provisioned with Google; key wiring, Tailwind v4 layer order, and ownership guard pattern documented
 - [Cloudflare token not in shells](cloudflare-token-shell-access.md) — CLOUDFLARE_API_TOKEN unreachable from agent/user shells; wrangler deploy can't be automated here
 - [Missing avatar upload route symptom](avatar-upload-route.md) — a "shows in one place, not elsewhere" bug can mean the persist endpoint 404s while local state still renders
+- [Clerk proxy breaks with dev keys](clerk-proxy-dev-key.md) — pk_test instances get "Invalid host" through any custom Clerk proxy; only pk_live+verified domain supports it
