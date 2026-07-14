@@ -36,10 +36,12 @@ export class BaasError extends Error {
 }
 
 function baasUrl(env: Bindings, path: string): string {
+  if (!env.BAAS_BASE_URL) throw new BaasError("BAAS_BASE_URL secret is not configured in this Worker", 503);
   return `${env.BAAS_BASE_URL}${path}`;
 }
 
 async function baasFetch(env: Bindings, path: string, init?: RequestInit): Promise<Response> {
+  if (!env.BAAS_API_KEY) throw new BaasError("BAAS_API_KEY secret is not configured in this Worker", 503);
   const resp = await fetch(baasUrl(env, path), {
     ...init,
     headers: {

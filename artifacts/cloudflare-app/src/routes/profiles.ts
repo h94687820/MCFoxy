@@ -155,10 +155,22 @@ profiles.post("/profiles/avatar", async (c) => {
   await putStorageBytes(c.env, init.uploadURL, await file.arrayBuffer(), file.type || "image/jpeg");
 
   const existing = await findByUserId(c.env, userId);
+  const now = new Date().toISOString();
   if (existing) {
     await patchRecord<ProfileData>(c.env, COLLECTION, existing.id, {
       avatarUrl: init.downloadUrl,
-      updatedAt: new Date().toISOString(),
+      updatedAt: now,
+    });
+  } else {
+    // Profile doesn't exist yet — create one with the avatar URL
+    await createRecord<ProfileData>(c.env, COLLECTION, {
+      userId,
+      username: `user_${userId.slice(-8)}`,
+      displayName: null,
+      bio: null,
+      avatarUrl: init.downloadUrl,
+      createdAt: now,
+      updatedAt: now,
     });
   }
 

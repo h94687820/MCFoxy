@@ -11,6 +11,7 @@ import {
   isDuplicateFieldError,
   initStorageUpload,
   putStorageBytes,
+  deleteStorageFile,
 } from "../lib/baas";
 
 const router = Router();
@@ -84,6 +85,10 @@ router.post("/profiles/avatar", avatarUpload.single("avatar"), async (req, res) 
 
     const existing = await findByUserId(userId);
     if (existing) {
+      // Delete old avatar from storage if it exists
+      if (existing.data.avatarUrl && (existing as any).data.avatarFileId) {
+        await deleteStorageFile((existing as any).data.avatarFileId).catch(() => {});
+      }
       await patchRecord<ProfileData>(COLLECTION, existing.id, {
         avatarUrl: init.downloadUrl,
         updatedAt: new Date().toISOString(),
