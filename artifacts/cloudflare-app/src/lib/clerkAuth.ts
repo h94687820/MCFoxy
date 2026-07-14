@@ -23,7 +23,6 @@ export async function getClerkAuth(
     try {
       const payload = await verifyToken(token, {
         secretKey: c.env.CLERK_SECRET_KEY,
-        publishableKey: c.env.CLERK_PUBLISHABLE_KEY,
       });
       return payload.sub ?? null;
     } catch {

@@ -362,10 +362,13 @@ files.get("/files/:id/download", async (c) => {
   const resp = await fetchStorageBytes(file.data.filePath);
   if (!resp.ok) return c.json({ error: "File not found in storage" }, 404);
 
-  c.header("Content-Disposition", `attachment; filename="${encodeURIComponent(file.data.originalName)}"`);
-  c.header("Content-Type", "application/octet-stream");
-  c.header("Content-Length", String(file.data.size));
-  return c.body(resp.body);
+  return new Response(resp.body, {
+    headers: {
+      "Content-Disposition": `attachment; filename="${encodeURIComponent(file.data.originalName)}"`,
+      "Content-Type": "application/octet-stream",
+      "Content-Length": String(file.data.size),
+    },
+  });
 });
 
 // ── Get file ──────────────────────────────────────────────────────────────────

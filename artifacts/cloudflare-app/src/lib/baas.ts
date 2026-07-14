@@ -35,22 +35,41 @@ export class BaasError extends Error {
   }
 }
 
-function baasUrl(env: Bindings, path: string): string {
-  if (!env.BAAS_BASE_URL) throw new BaasError("BAAS_BASE_URL secret is not configured in this Worker", 503);
-  return `${env.BAAS_BASE_URL}${path}`;
+// Fallback base URL when BAAS_SERVICE binding isn't available (dev / wrangler dev)
+const BAAS_FALLBACK_BASE = "https://baas-platform.mcfoxy.workers.dev";
+
+function resolveBaasBase(env: Bindings): string {
+  return (env.BAAS_BASE_URL || BAAS_FALLBACK_BASE).replace(/\/$/, "");
 }
 
+/**
+ * Makes a request to the BaaS platform.
+ *
+ * On Cloudflare (production): uses the BAAS_SERVICE Service Binding so the
+ * Worker-to-Worker call goes through the internal fast-path instead of the
+ * public internet (avoids the workers.dev cross-Worker HTTPS restriction that
+ * causes Cloudflare error 1042).
+ *
+ * In development (Replit): falls back to a normal HTTPS fetch using BAAS_BASE_URL.
+ */
 async function baasFetch(env: Bindings, path: string, init?: RequestInit): Promise<Response> {
-  if (!env.BAAS_API_KEY) throw new BaasError("BAAS_API_KEY secret is not configured in this Worker", 503);
-  const resp = await fetch(baasUrl(env, path), {
-    ...init,
-    headers: {
-      "X-API-Key": env.BAAS_API_KEY,
-      ...(init?.body ? { "Content-Type": "application/json" } : {}),
-      ...init?.headers,
-    },
-  });
-  return resp;
+  if (!env.BAAS_API_KEY) throw new BaasError("BAAS_API_KEY is not configured", 503);
+
+  const headers: Record<string, string> = {
+    "X-API-Key": env.BAAS_API_KEY,
+    ...(init?.body ? { "Content-Type": "application/json" } : {}),
+    ...(init?.headers as Record<string, string> | undefined),
+  };
+
+  const url = `${resolveBaasBase(env)}${path}`;
+  const req = new Request(url, { ...init, headers });
+
+  // Use Service Binding in production to avoid the workers.dev cross-Worker restriction
+  if (env.BAAS_SERVICE) {
+    return env.BAAS_SERVICE.fetch(req);
+  }
+
+  return fetch(req);
 }
 
 async function parseJsonOrThrow(resp: Response): Promise<any> {
@@ -156,11 +175,13 @@ export async function initStorageUpload(
 
 /** Step 2: PUTs the raw file bytes to the signed URL returned by initStorageUpload. */
 export async function putStorageBytes(env: Bindings, uploadURL: string, body: BodyInit, contentType: string): Promise<void> {
-  const resp = await fetch(baasUrl(env, uploadURL), {
+  const url = `${resolveBaasBase(env)}${uploadURL}`;
+  const req = new Request(url, {
     method: "PUT",
     headers: { "Content-Type": contentType },
     body,
   });
+  const resp = env.BAAS_SERVICE ? await env.BAAS_SERVICE.fetch(req) : await fetch(req);
   if (!resp.ok) throw new BaasError(await resp.text(), resp.status);
 }
 

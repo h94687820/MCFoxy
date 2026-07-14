@@ -1,6 +1,9 @@
 export type Bindings = {
   ASSETS: Fetcher;
-  BAAS_BASE_URL: string;
+  /** Service Binding to baas-platform Worker — preferred over HTTPS fetch on Cloudflare */
+  BAAS_SERVICE?: Fetcher;
+  /** Fallback: full base URL for BaaS when Service Binding is unavailable (e.g. local dev) */
+  BAAS_BASE_URL?: string;
   BAAS_API_KEY: string;
   CLERK_SECRET_KEY: string;
   CLERK_PUBLISHABLE_KEY: string;

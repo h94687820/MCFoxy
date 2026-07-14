@@ -9,6 +9,11 @@ directory = "../minecraft-hub/dist/public"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
 
+# Service Binding: calls baas-platform Worker directly (avoids workers.dev fetch restriction)
+[[services]]
+binding = "BAAS_SERVICE"
+service = "baas-platform"
+
 # Non-secret vars. Secrets (CLERK_SECRET_KEY, CLERK_PUBLISHABLE_KEY,
 # BAAS_API_KEY, BAAS_BASE_URL, DEEPAI_API_KEY, VIRUSTOTAL_API_KEY)
 # are set via `wrangler secret put <NAME>` and must NOT be committed here.
