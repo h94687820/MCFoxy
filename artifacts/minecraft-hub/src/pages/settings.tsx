@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { Moon, Palette, CheckCircle, Languages, LogOut } from "lucide-react";
 import { useLanguage, LANGUAGES, type Language } from "@/contexts/language-context";
 import { useClerk, useUser } from "@clerk/react";
+import { applyTheme } from "@/hooks/use-theme";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -39,6 +40,11 @@ export default function SettingsPage() {
   const { user } = useUser();
 
   function update(patch: { theme?: ThemeName; darkMode?: boolean; virusTotalEnabled?: boolean }) {
+    // Apply to DOM immediately so the user sees the change at once
+    const nextTheme = patch.theme ?? settings?.theme ?? "default";
+    const nextDark = patch.darkMode ?? settings?.darkMode ?? true;
+    applyTheme(nextTheme, nextDark);
+
     updateMutation.mutate({ data: patch }, {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getGetSettingsQueryKey() });

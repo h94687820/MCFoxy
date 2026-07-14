@@ -28,6 +28,23 @@
     <meta property="og:image" content="opengraph.jpg" />
   </head>
   <body>
+    <!-- Apply theme + dark mode IMMEDIATELY before React loads to prevent white flash -->
+    <script>
+      (function () {
+        try {
+          var dark = localStorage.getItem("mc-dark");
+          var theme = localStorage.getItem("mc-theme") || "default";
+          // Default to dark mode if no preference is saved
+          if (dark === null || dark === "true") {
+            document.documentElement.classList.add("dark");
+          }
+          document.documentElement.classList.add("theme-" + theme);
+        } catch (e) {
+          // localStorage blocked — just apply dark by default
+          document.documentElement.classList.add("dark", "theme-default");
+        }
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
