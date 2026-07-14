@@ -73,8 +73,9 @@ type FileData = {
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function requireAuth(req: any, res: any, next: any) {
   const auth = getAuth(req);
-  if (!auth.userId) return res.status(401).json({ error: "Unauthorized — please sign in" });
-  req.userId = auth.userId;
+  const userId = auth?.sessionClaims?.userId || auth?.userId;
+  if (!userId) return res.status(401).json({ error: "Unauthorized — please sign in" });
+  req.userId = userId;
   next();
 }
 

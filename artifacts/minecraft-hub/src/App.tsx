@@ -29,9 +29,9 @@ const clerkPubKey = publishableKeyFromHost(
   import.meta.env.VITE_CLERK_PUBLISHABLE_KEY,
 );
 
-// Only pass proxyUrl when it's a real non-empty string — an empty string
-// causes Clerk to attempt an empty-host proxy request and fail silently.
-const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL || undefined;
+// REQUIRED — copy verbatim. Empty in dev (Clerk hits dev FAPI directly),
+// auto-set in prod. Do NOT gate on NODE_ENV — the empty dev value is intentional.
+const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
 
 function stripBase(path: string): string {
   return basePath && path.startsWith(basePath)
@@ -44,7 +44,7 @@ if (!clerkPubKey) {
 }
 
 const clerkAppearance = {
-  baseTheme: shadcn,
+  theme: shadcn,
   cssLayerName: "clerk",
   options: {
     logoPlacement: "inside" as const,

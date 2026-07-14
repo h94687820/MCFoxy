@@ -71,7 +71,8 @@ async function ensureSchema() {
 
 // ── Avatar upload ────────────────────────────────────────────────────────────
 router.post("/profiles/avatar", avatarUpload.single("avatar"), async (req, res) => {
-  const { userId } = getAuth(req);
+  const auth = getAuth(req);
+  const userId = auth?.sessionClaims?.userId || auth?.userId;
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
   if (!req.file) return res.status(400).json({ error: "No avatar file uploaded, or file type not allowed" });
 
@@ -114,7 +115,8 @@ router.post("/profiles/avatar", avatarUpload.single("avatar"), async (req, res) 
 
 // ── Get my profile ────────────────────────────────────────────────────────────
 router.get("/profiles/me", async (req, res) => {
-  const { userId } = getAuth(req);
+  const auth = getAuth(req);
+  const userId = auth?.sessionClaims?.userId || auth?.userId;
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
   await ensureSchema();
@@ -138,7 +140,8 @@ router.get("/profiles/me", async (req, res) => {
 
 // ── Update my profile ─────────────────────────────────────────────────────────
 router.put("/profiles/me", async (req, res) => {
-  const { userId } = getAuth(req);
+  const auth = getAuth(req);
+  const userId = auth?.sessionClaims?.userId || auth?.userId;
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
   await ensureSchema();
