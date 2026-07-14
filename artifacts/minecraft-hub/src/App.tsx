@@ -28,7 +28,9 @@ const clerkPubKey = publishableKeyFromHost(
   import.meta.env.VITE_CLERK_PUBLISHABLE_KEY,
 );
 
-const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
+// Only pass proxyUrl when it's a real non-empty string — an empty string
+// causes Clerk to attempt an empty-host proxy request and fail silently.
+const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL || undefined;
 
 function stripBase(path: string): string {
   return basePath && path.startsWith(basePath)
@@ -109,7 +111,6 @@ function ClerkQueryClientCacheInvalidator() {
 }
 
 function AppContent() {
-  useTheme();
   return (
     <Layout>
       <Switch>
@@ -123,6 +124,12 @@ function AppContent() {
       </Switch>
     </Layout>
   );
+}
+
+/** Runs useTheme at the top level so theme applies on ALL pages (including sign-in/sign-up) */
+function ThemeSyncer() {
+  useTheme();
+  return null;
 }
 
 function ClerkProviderWithRoutes() {
@@ -140,6 +147,7 @@ function ClerkProviderWithRoutes() {
     >
       <QueryClientProvider client={queryClient}>
         <ClerkQueryClientCacheInvalidator />
+        <ThemeSyncer />
         <TooltipProvider>
           <Switch>
             <Route path="/sign-in/*?" component={SignInPage} />

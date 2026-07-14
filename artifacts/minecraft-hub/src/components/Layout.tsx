@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import { LayoutGrid, Upload, Settings, Shield, Download, LogIn, LogOut, User, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePWAInstall } from "@/hooks/use-pwa-install";
-import { useClerk, useUser } from "@clerk/react";
+import { useClerk, useUser, useAuth } from "@clerk/react";
 import { useLanguage } from "@/contexts/language-context";
 import { useState, useEffect } from "react";
 import { useGetMyProfile, getGetMyProfileQueryKey } from "@workspace/api-client-react";
@@ -16,8 +16,9 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
   const { canInstall, install } = usePWAInstall();
-  const { signOut } = useClerk();
+  const { signOut, openSignIn, openSignUp } = useClerk();
   const { user, isLoaded } = useUser();
+  const { isLoaded: authLoaded } = useAuth();
   const { t } = useLanguage();
   const { data: profile } = useGetMyProfile({
     query: { queryKey: getGetMyProfileQueryKey(), enabled: !!user },
@@ -140,13 +141,13 @@ export default function Layout({ children }: LayoutProps) {
             </div>
           ) : (
             <div className="space-y-2">
-              <Link
-                href="/sign-in"
+              <button
+                onClick={() => openSignIn()}
                 className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-muted-foreground border border-sidebar-border hover:border-primary/60 hover:text-primary transition-colors"
               >
                 <LogIn className="w-3.5 h-3.5 flex-shrink-0" />
                 {t.nav.signIn}
-              </Link>
+              </button>
             </div>
           )}
           {canInstall && (
@@ -210,10 +211,10 @@ export default function Layout({ children }: LayoutProps) {
             </button>
           </div>
         ) : (
-          <Link href="/sign-in" className="text-xs text-primary font-medium flex items-center gap-1">
+          <button onClick={() => openSignIn()} className="text-xs text-primary font-medium flex items-center gap-1">
             <LogIn className="w-3.5 h-3.5" />
             {t.nav.signIn}
-          </Link>
+          </button>
         )}
       </header>
 

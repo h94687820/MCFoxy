@@ -40,16 +40,32 @@ export default function SettingsPage() {
   const { user } = useUser();
 
   function update(patch: { theme?: ThemeName; darkMode?: boolean; virusTotalEnabled?: boolean }) {
-    // Apply to DOM immediately so the user sees the change at once
+    // Compute the next values
     const nextTheme = patch.theme ?? settings?.theme ?? "default";
     const nextDark = patch.darkMode ?? settings?.darkMode ?? true;
+
+    // 1. Apply to DOM immediately (instant visual feedback)
     applyTheme(nextTheme, nextDark);
 
+    // 2. Update React Query cache immediately so useTheme() re-running
+    //    won't revert to the old server value before the mutation completes
+    if (settings) {
+      queryClient.setQueryData(getGetSettingsQueryKey(), {
+        ...settings,
+        ...patch,
+      });
+    }
+
     updateMutation.mutate({ data: patch }, {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getGetSettingsQueryKey() });
+      onSuccess: (newSettings) => {
+        // Sync cache with what the server actually returned
+        queryClient.setQueryData(getGetSettingsQueryKey(), newSettings);
         setSaved(true);
         setTimeout(() => setSaved(false), 1500);
+      },
+      onError: () => {
+        // Revert on failure
+        queryClient.invalidateQueries({ queryKey: getGetSettingsQueryKey() });
       },
     });
   }
