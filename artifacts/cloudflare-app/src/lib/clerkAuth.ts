@@ -1,36 +1,21 @@
-import { createClerkClient, verifyToken } from "@clerk/backend";
+import { createClerkClient } from "@clerk/backend";
 import type { Context, Next } from "hono";
 import type { Bindings, Variables } from "../env.d";
 
 /**
  * Verifies the Clerk session for the incoming request.
  *
- * Strategy:
- * 1. If there is an `Authorization: Bearer <token>` header (sent by the SPA
- *    on Cloudflare via `useAuth().getToken()`), verify the raw session JWT
- *    directly with `verifyToken` — this is the correct edge-compatible path
- *    for client→API calls and does NOT rely on cookies.
- * 2. Fall back to `authenticateRequest` for cookie-based sessions (used in
- *    the Replit dev environment where everything is on the same origin).
+ * Uses `authenticateRequest` from the Clerk backend SDK, which handles both:
+ * - `Authorization: Bearer <token>` headers  (sent by the SPA on Cloudflare)
+ * - `__session` / `__client_uat` cookies      (sent in same-origin dev flows)
+ *
+ * Previously we used a manual `verifyToken` path for Bearer tokens, but that
+ * fails silently on Cloudflare because `verifyToken` without `publishableKey`
+ * cannot determine the JWKS endpoint and always throws → 401 for logged-in users.
  */
 export async function getClerkAuth(
   c: Context<{ Bindings: Bindings; Variables: Variables }>,
 ): Promise<string | null> {
-  // ── 1. Bearer token (Cloudflare / cross-origin SPA) ──────────────────────
-  const authHeader = c.req.header("Authorization");
-  if (authHeader?.startsWith("Bearer ")) {
-    const token = authHeader.slice(7).trim();
-    try {
-      const payload = await verifyToken(token, {
-        secretKey: c.env.CLERK_SECRET_KEY,
-      });
-      return payload.sub ?? null;
-    } catch {
-      return null;
-    }
-  }
-
-  // ── 2. Cookie-based session (Replit dev / same-origin) ────────────────────
   const clerkClient = createClerkClient({
     secretKey: c.env.CLERK_SECRET_KEY,
     publishableKey: c.env.CLERK_PUBLISHABLE_KEY,
