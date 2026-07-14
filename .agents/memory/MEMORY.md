@@ -1,3 +1,4 @@
+- [BaaS migration](baas-migration.md) — BaaS is sole data+storage backend; collections, upload flow, image URL handling, unique fields, and known limits documented
 - [Replit Auth lib tsconfig](replit-auth-lib.md) — composite lib needs specific fixes; import.meta.env and workspace dep pitfalls documented
 - [Clerk Auth setup](clerk-auth-setup.md) — Clerk provisioned with Google; key wiring, Tailwind v4 layer order, and ownership guard pattern documented
 - [Secrets can go empty in shells](cloudflare-token-shell-access.md) — any secret can show empty in ShellExec despite existing; re-request via requestSecrets before assuming a block

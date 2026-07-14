@@ -1,41 +1,42 @@
 import { Router } from "express";
-import { db, settingsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
 import { UpdateSettingsBody } from "@workspace/api-zod";
+import { listRecords, createRecord, patchRecord } from "../lib/baas";
 
 const router = Router();
 
-async function getOrCreateSettings() {
-  const [existing] = await db.select().from(settingsTable).limit(1);
-  if (existing) return existing;
+const COLLECTION = "settings";
 
-  const [created] = await db
-    .insert(settingsTable)
-    .values({ theme: "default", darkMode: true, virusTotalEnabled: true })
-    .returning();
-  return created;
+type SettingsData = {
+  theme: string;
+  darkMode: boolean;
+  virusTotalEnabled: boolean;
+};
+
+function toResponse(record: { id: number; data: SettingsData }) {
+  return { id: record.id, ...record.data };
+}
+
+async function getOrCreateSettings() {
+  const all = await listRecords<SettingsData>(COLLECTION);
+  if (all.length > 0) return all[0];
+  return createRecord<SettingsData>(COLLECTION, {
+    theme: "default",
+    darkMode: true,
+    virusTotalEnabled: true,
+  });
 }
 
 router.get("/settings", async (_req, res) => {
-  const settings = await getOrCreateSettings();
-  return res.json(settings);
+  return res.json(toResponse(await getOrCreateSettings()));
 });
 
 router.put("/settings", async (req, res) => {
   const parseResult = UpdateSettingsBody.safeParse(req.body);
-  if (!parseResult.success) {
-    return res.status(400).json({ error: "Invalid settings" });
-  }
+  if (!parseResult.success) return res.status(400).json({ error: "Invalid settings" });
 
   const current = await getOrCreateSettings();
-
-  const [updated] = await db
-    .update(settingsTable)
-    .set(parseResult.data)
-    .where(eq(settingsTable.id, current.id))
-    .returning();
-
-  return res.json(updated);
+  const updated = await patchRecord<SettingsData>(COLLECTION, current.id, parseResult.data);
+  return res.json(toResponse(updated));
 });
 
 export default router;

@@ -60,6 +60,14 @@ interface ImageGalleryProps {
   onImagesUpdated: () => void;
 }
 
+/** Resolves an image value that may be a full URL (BaaS) or a legacy filename. */
+function resolveImageUrl(urlOrFilename: string, base: string): string {
+  if (urlOrFilename.startsWith("http://") || urlOrFilename.startsWith("https://")) {
+    return urlOrFilename;
+  }
+  return `${base}/api/uploads/images/${urlOrFilename}`;
+}
+
 function ImageGallery({ images, fileId, isOwner, onImagesUpdated }: ImageGalleryProps) {
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -126,11 +134,11 @@ function ImageGallery({ images, fileId, isOwner, onImagesUpdated }: ImageGallery
           {images.map((imgName, i) => (
             <button
               key={i}
-              onClick={() => setLightbox(`${base}/api/uploads/images/${imgName}`)}
+              onClick={() => setLightbox(resolveImageUrl(imgName, base))}
               className="aspect-video bg-card border border-border overflow-hidden hover:border-primary/50 transition-colors"
             >
               <img
-                src={`${base}/api/uploads/images/${imgName}`}
+                src={resolveImageUrl(imgName, base)}
                 alt={`Screenshot ${i + 1}`}
                 className="w-full h-full object-cover"
               />
@@ -225,7 +233,7 @@ function CoverImageSection({ coverImage, fileId, isOwner, onUpdated }: CoverImag
       {coverImage ? (
         <div className="aspect-video bg-background border border-border overflow-hidden">
           <img
-            src={`${base}/api/uploads/images/${coverImage}`}
+            src={resolveImageUrl(coverImage, base)}
             alt="Cover"
             className="w-full h-full object-cover"
           />

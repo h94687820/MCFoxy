@@ -1,6 +1,5 @@
 import express, { type Express } from "express";
 import cors from "cors";
-import path from "path";
 import pinoHttp from "pino-http";
 import { clerkMiddleware } from "@clerk/express";
 import { publishableKeyFromHost } from "@clerk/shared/keys";
@@ -43,8 +42,7 @@ app.use(
   })),
 );
 
-const uploadsDir = path.join(process.cwd(), "uploads");
-app.use("/api/uploads", express.static(uploadsDir));
+// All file storage is now handled by BaaS — no local uploads directory needed.
 
 app.use("/api", router);
 

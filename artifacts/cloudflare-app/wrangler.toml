@@ -10,9 +10,7 @@ binding = "ASSETS"
 not_found_handling = "single-page-application"
 
 # Non-secret vars. Secrets (CLERK_SECRET_KEY, CLERK_PUBLISHABLE_KEY,
-# DATABASE_URL, SUPABASE_SERVICE_ROLE_KEY, DEEPAI_API_KEY, VIRUSTOTAL_API_KEY)
+# BAAS_API_KEY, BAAS_BASE_URL, DEEPAI_API_KEY, VIRUSTOTAL_API_KEY)
 # are set via `wrangler secret put <NAME>` and must NOT be committed here.
-# SUPABASE_URL is not a secret and can be committed.
 [vars]
 NODE_ENV = "production"
-SUPABASE_URL = "https://ofaucvabdfaknojoaivq.supabase.co"

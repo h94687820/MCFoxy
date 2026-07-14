@@ -71,6 +71,14 @@ function StatCard({ icon: Icon, label, value, color }: { icon: React.ElementType
   );
 }
 
+/** Resolves an image value that may be a full URL (BaaS) or a legacy filename. */
+function resolveImageUrl(urlOrFilename: string, base: string): string {
+  if (urlOrFilename.startsWith("http://") || urlOrFilename.startsWith("https://")) {
+    return urlOrFilename;
+  }
+  return `${base}/api/uploads/images/${urlOrFilename}`;
+}
+
 function FileThumbnail({ coverImage, images, originalName }: { coverImage?: string | null; images: unknown; originalName: string }) {
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
   const imageList = Array.isArray(images) ? (images as string[]) : [];
@@ -80,7 +88,7 @@ function FileThumbnail({ coverImage, images, originalName }: { coverImage?: stri
   return (
     <div className="w-12 h-12 flex-shrink-0 overflow-hidden border border-border bg-card">
       <img
-        src={`${base}/api/uploads/images/${thumb}`}
+        src={resolveImageUrl(thumb, base)}
         alt={originalName}
         className="w-full h-full object-cover"
         onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
