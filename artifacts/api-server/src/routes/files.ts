@@ -219,6 +219,8 @@ router.post(
 
     if (!mainFile) return res.status(400).json({ error: "No file uploaded" });
 
+    try {
+
     const { type, edition, description, customId, title } = req.body as {
       type?: string; edition?: string; description?: string; customId?: string; title?: string;
     };
@@ -337,6 +339,11 @@ router.post(
     }
 
     return res.status(201).json(fileToResponse(inserted));
+    } catch (err: any) {
+      cleanupTmp();
+      logger.error({ err: err?.message, stack: err?.stack }, "Upload failed");
+      return res.status(500).json({ error: err?.message ?? "Upload failed" });
+    }
   },
 );
 

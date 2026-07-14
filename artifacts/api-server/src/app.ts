@@ -46,4 +46,12 @@ app.use(
 
 app.use("/api", router);
 
+// Global error handler — returns JSON so the frontend can show the real message.
+app.use((err: any, _req: any, res: any, _next: any) => {
+  const status = err.status ?? err.statusCode ?? 500;
+  const message = err.message ?? "Internal server error";
+  logger.error({ err: message, stack: err.stack }, "Unhandled error");
+  res.status(status).json({ error: message });
+});
+
 export default app;
