@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { getClerkAuth } from "../lib/clerkAuth";
+import { getClerkUserId } from "../lib/clerkAuth";
 import {
   listRecords,
   getRecord,
@@ -61,7 +61,7 @@ async function findByUsername(env: Bindings, username: string) {
 }
 
 profiles.get("/profiles/me", async (c) => {
-  const userId = await getClerkAuth(c);
+  const userId = await getClerkUserId(c);
   if (!userId) return c.json({ error: "Unauthorized" }, 401);
 
   await ensureSchema(c.env);
@@ -85,7 +85,7 @@ profiles.get("/profiles/me", async (c) => {
 });
 
 profiles.put("/profiles/me", async (c) => {
-  const userId = await getClerkAuth(c);
+  const userId = await getClerkUserId(c);
   if (!userId) return c.json({ error: "Unauthorized" }, 401);
 
   await ensureSchema(c.env);
@@ -134,7 +134,7 @@ profiles.put("/profiles/me", async (c) => {
 
 // ── Upload avatar image ───────────────────────────────────────────────────────
 profiles.post("/profiles/avatar", async (c) => {
-  const userId = await getClerkAuth(c);
+  const userId = await getClerkUserId(c);
   if (!userId) return c.json({ error: "Unauthorized" }, 401);
 
   const body = await c.req.parseBody();

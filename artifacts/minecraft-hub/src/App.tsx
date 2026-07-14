@@ -1,9 +1,10 @@
 import { useEffect, useRef } from "react";
 import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
-import { ClerkProvider, useClerk } from "@clerk/react";
+import { ClerkProvider, SignIn, SignUp, useClerk, useAuth } from "@clerk/react";
 import { publishableKeyFromHost } from "@clerk/react/internal";
 import { shadcn } from "@clerk/themes";
+import { setAuthTokenGetter } from "@workspace/api-client-react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/toaster";
 import Layout from "@/components/Layout";
@@ -13,25 +14,23 @@ import SettingsPage from "@/pages/settings";
 import FileDetailPage from "@/pages/file-detail";
 import ProfilePage from "@/pages/profile";
 import UserProfilePage from "@/pages/user-profile";
-import SignInPage from "@/pages/sign-in";
-import SignUpPage from "@/pages/sign-up";
 import NotFound from "@/pages/not-found";
-import DebugAuthPage from "@/pages/debug-auth";
 import { useTheme } from "@/hooks/use-theme";
 import { LanguageProvider } from "@/contexts/language-context";
 
 const queryClient = new QueryClient();
 
-const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
-
+// REQUIRED — resolves key from hostname so the same build works on any domain.
 const clerkPubKey = publishableKeyFromHost(
   window.location.hostname,
   import.meta.env.VITE_CLERK_PUBLISHABLE_KEY,
 );
 
-// REQUIRED — copy verbatim. Empty in dev (Clerk hits dev FAPI directly),
-// auto-set in prod. Do NOT gate on NODE_ENV — the empty dev value is intentional.
+// REQUIRED — empty in dev (Clerk hits FAPI directly), auto-set in prod.
+// Do NOT gate on NODE_ENV or add || undefined — the empty value is intentional.
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
+
+const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 function stripBase(path: string): string {
   return basePath && path.startsWith(basePath)
@@ -43,7 +42,7 @@ if (!clerkPubKey) {
   throw new Error("Missing VITE_CLERK_PUBLISHABLE_KEY");
 }
 
-const clerkAppearance = {
+const appearance = {
   theme: shadcn,
   cssLayerName: "clerk",
   options: {
@@ -65,13 +64,15 @@ const clerkAppearance = {
   },
   elements: {
     rootBox: "w-full flex justify-center",
-    cardBox: "bg-[#0f172a] border border-[#1e293b] rounded-none w-[440px] max-w-full overflow-hidden shadow-2xl",
+    cardBox:
+      "bg-[#0f172a] border border-[#1e293b] rounded-none w-[440px] max-w-full overflow-hidden shadow-2xl",
     card: "!shadow-none !border-0 !bg-transparent !rounded-none",
     footer: "!shadow-none !border-0 !bg-transparent !rounded-none",
     headerTitle: "text-[#f1f5f9] font-bold",
     headerSubtitle: "text-[#94a3b8]",
     socialButtonsBlockButtonText: "text-[#f1f5f9] font-medium",
-    formFieldLabel: "text-[#94a3b8] text-xs uppercase tracking-widest font-semibold",
+    formFieldLabel:
+      "text-[#94a3b8] text-xs uppercase tracking-widest font-semibold",
     footerActionLink: "text-[#f97316] hover:text-[#fb923c]",
     footerActionText: "text-[#64748b]",
     dividerText: "text-[#475569]",
@@ -80,9 +81,12 @@ const clerkAppearance = {
     alertText: "text-[#f1f5f9]",
     logoBox: "mb-2",
     logoImage: "h-10 w-10",
-    socialButtonsBlockButton: "border border-[#1e293b] bg-[#1e293b] hover:bg-[#334155] transition-colors",
-    formButtonPrimary: "bg-[#f97316] hover:bg-[#fb923c] text-white font-semibold",
-    formFieldInput: "bg-[#1e293b] border border-[#334155] text-[#f1f5f9] focus:border-[#f97316] rounded-none",
+    socialButtonsBlockButton:
+      "border border-[#1e293b] bg-[#1e293b] hover:bg-[#334155] transition-colors",
+    formButtonPrimary:
+      "bg-[#f97316] hover:bg-[#fb923c] text-white font-semibold",
+    formFieldInput:
+      "bg-[#1e293b] border border-[#334155] text-[#f1f5f9] focus:border-[#f97316] rounded-none",
     footerAction: "border-t border-[#1e293b]",
     dividerLine: "bg-[#1e293b]",
     alert: "border border-[#334155] bg-[#1e293b]",
@@ -92,69 +96,106 @@ const clerkAppearance = {
   },
 };
 
-function ClerkQueryClientCacheInvalidator() {
+/**
+ * Wires the Clerk session token into every API call via the shared customFetch.
+ * This is what makes authenticated requests work on Cloudflare Workers (which
+ * reads Authorization: Bearer headers) in addition to the dev Express server
+ * (which also accepts Bearer tokens via @clerk/express clerkMiddleware).
+ */
+function ClerkTokenBridge() {
+  const { getToken } = useAuth();
+  useEffect(() => {
+    setAuthTokenGetter(() => getToken());
+    return () => setAuthTokenGetter(null);
+  }, [getToken]);
+  return null;
+}
+
+/** Clears the React Query cache whenever the signed-in user changes. */
+function QueryCacheInvalidator() {
   const { addListener } = useClerk();
   const qc = useQueryClient();
-  const prevUserIdRef = useRef<string | null | undefined>(undefined);
+  const prevIdRef = useRef<string | null | undefined>(undefined);
 
   useEffect(() => {
-    const unsubscribe = addListener(({ user }) => {
-      const userId = user?.id ?? null;
-      if (prevUserIdRef.current !== undefined && prevUserIdRef.current !== userId) {
+    return addListener(({ user }) => {
+      const id = user?.id ?? null;
+      if (prevIdRef.current !== undefined && prevIdRef.current !== id) {
         qc.clear();
       }
-      prevUserIdRef.current = userId;
+      prevIdRef.current = id;
     });
-    return unsubscribe;
   }, [addListener, qc]);
 
   return null;
 }
 
-function AppContent() {
-  return (
-    <Layout>
-      <Switch>
-        <Route path="/" component={HomePage} />
-        <Route path="/upload" component={UploadPage} />
-        <Route path="/settings" component={SettingsPage} />
-        <Route path="/profile" component={ProfilePage} />
-        <Route path="/u/:username" component={UserProfilePage} />
-        <Route path="/files/:id" component={FileDetailPage} />
-        <Route path="/debug" component={DebugAuthPage} />
-        <Route component={NotFound} />
-      </Switch>
-    </Layout>
-  );
-}
-
-/** Runs useTheme at the top level so theme applies on ALL pages (including sign-in/sign-up) */
 function ThemeSyncer() {
   useTheme();
   return null;
 }
 
-function ClerkProviderWithRoutes() {
+function SignInPage() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <SignIn
+        routing="path"
+        path={`${basePath}/sign-in`}
+        signUpUrl={`${basePath}/sign-up`}
+        fallbackRedirectUrl={basePath || "/"}
+      />
+    </div>
+  );
+}
+
+function SignUpPage() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <SignUp
+        routing="path"
+        path={`${basePath}/sign-up`}
+        signInUrl={`${basePath}/sign-in`}
+        fallbackRedirectUrl={basePath || "/"}
+      />
+    </div>
+  );
+}
+
+function AppRoutes() {
   const [, setLocation] = useLocation();
 
   return (
     <ClerkProvider
       publishableKey={clerkPubKey}
       proxyUrl={clerkProxyUrl}
-      appearance={clerkAppearance}
+      appearance={appearance}
       signInUrl={`${basePath}/sign-in`}
       signUpUrl={`${basePath}/sign-up`}
       routerPush={(to) => setLocation(stripBase(to))}
       routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
     >
       <QueryClientProvider client={queryClient}>
-        <ClerkQueryClientCacheInvalidator />
+        <ClerkTokenBridge />
+        <QueryCacheInvalidator />
         <ThemeSyncer />
         <TooltipProvider>
           <Switch>
+            {/* REQUIRED — /*? wildcard matches OAuth sub-paths like /sign-in/sso-callback */}
             <Route path="/sign-in/*?" component={SignInPage} />
             <Route path="/sign-up/*?" component={SignUpPage} />
-            <Route component={AppContent} />
+            <Route>
+              <Layout>
+                <Switch>
+                  <Route path="/" component={HomePage} />
+                  <Route path="/upload" component={UploadPage} />
+                  <Route path="/settings" component={SettingsPage} />
+                  <Route path="/profile" component={ProfilePage} />
+                  <Route path="/u/:username" component={UserProfilePage} />
+                  <Route path="/files/:id" component={FileDetailPage} />
+                  <Route component={NotFound} />
+                </Switch>
+              </Layout>
+            </Route>
           </Switch>
           <Toaster />
         </TooltipProvider>
@@ -167,7 +208,7 @@ function App() {
   return (
     <LanguageProvider>
       <WouterRouter base={basePath}>
-        <ClerkProviderWithRoutes />
+        <AppRoutes />
       </WouterRouter>
     </LanguageProvider>
   );

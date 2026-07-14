@@ -1,10 +1,20 @@
 import { Link, useLocation } from "wouter";
-import { LayoutGrid, Upload, Settings, Shield, Download, LogIn, LogOut, User, X } from "lucide-react";
+import {
+  LayoutGrid,
+  Upload,
+  Settings,
+  Shield,
+  Download,
+  LogIn,
+  LogOut,
+  User,
+  X,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePWAInstall } from "@/hooks/use-pwa-install";
-import { useClerk, useUser, useAuth } from "@clerk/react";
+import { useClerk, useUser } from "@clerk/react";
 import { useLanguage } from "@/contexts/language-context";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useGetMyProfile, getGetMyProfileQueryKey } from "@workspace/api-client-react";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -14,23 +24,23 @@ interface LayoutProps {
 }
 
 export default function Layout({ children }: LayoutProps) {
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const { canInstall, install } = usePWAInstall();
-  const { signOut, openSignIn, openSignUp } = useClerk();
+  const { signOut } = useClerk();
   const { user, isLoaded } = useUser();
-  const { isLoaded: authLoaded } = useAuth();
   const { t } = useLanguage();
+
   const { data: profile } = useGetMyProfile({
     query: { queryKey: getGetMyProfileQueryKey(), enabled: !!user },
   });
 
-  // Prefer the app's own profile identity (avatar/display name) over Clerk's
-  // account data — Clerk holds the user's real name/email, but the app should
-  // only ever surface the public display name / username the user chose.
   const avatarSrc = profile?.avatarUrl || user?.imageUrl;
-  const displayLabel = profile?.displayName || (profile?.username ? `@${profile.username}` : "User");
+  const displayLabel =
+    profile?.displayName ||
+    (profile?.username ? `@${profile.username}` : "User");
+
   const [installBannerDismissed, setInstallBannerDismissed] = useState(() =>
-    localStorage.getItem("pwa-banner-dismissed") === "1"
+    localStorage.getItem("pwa-banner-dismissed") === "1",
   );
 
   const navItems = [
@@ -49,15 +59,26 @@ export default function Layout({ children }: LayoutProps) {
     dismissBanner();
   }
 
+  function handleSignOut() {
+    signOut({ redirectUrl: basePath || "/" });
+  }
+
+  function handleSignIn() {
+    setLocation("/sign-in");
+  }
+
   const showInstallBanner = canInstall && !installBannerDismissed;
 
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
-
       {/* ── Install Banner (mobile top) ─────────────────────────────────────── */}
       {showInstallBanner && (
         <div className="md:hidden fixed top-0 left-0 right-0 z-50 bg-primary text-primary-foreground flex items-center gap-3 px-4 py-3 shadow-lg">
-          <img src="/logo.png" alt="WhiteWase" className="w-5 h-5 flex-shrink-0 rounded-sm object-cover" />
+          <img
+            src="/logo.png"
+            alt="WhiteWase"
+            className="w-5 h-5 flex-shrink-0 rounded-sm object-cover"
+          />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold leading-none">WhiteWase</p>
             <p className="text-xs opacity-80 mt-0.5">{t.nav.install}</p>
@@ -68,7 +89,10 @@ export default function Layout({ children }: LayoutProps) {
           >
             {t.nav.install}
           </button>
-          <button onClick={dismissBanner} className="flex-shrink-0 opacity-70 hover:opacity-100">
+          <button
+            onClick={dismissBanner}
+            className="flex-shrink-0 opacity-70 hover:opacity-100"
+          >
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -80,11 +104,19 @@ export default function Layout({ children }: LayoutProps) {
         <div className="p-6 border-b border-sidebar-border">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 flex items-center justify-center overflow-hidden">
-              <img src="/logo.png" alt="WhiteWase" className="w-9 h-9 rounded-md object-cover" />
+              <img
+                src="/logo.png"
+                alt="WhiteWase"
+                className="w-9 h-9 rounded-md object-cover"
+              />
             </div>
             <div>
-              <p className="font-bold text-sidebar-foreground leading-none tracking-tight">WhiteWase</p>
-              <p className="text-xs text-muted-foreground mt-0.5 font-mono">Mods &amp; Maps Hub</p>
+              <p className="font-bold text-sidebar-foreground leading-none tracking-tight">
+                WhiteWase
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5 font-mono">
+                Mods &amp; Maps Hub
+              </p>
             </div>
           </div>
         </div>
@@ -102,7 +134,7 @@ export default function Layout({ children }: LayoutProps) {
                   "flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-colors",
                   isActive
                     ? "bg-primary text-primary-foreground"
-                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                 )}
               >
                 <Icon className="w-4 h-4 flex-shrink-0" />
@@ -121,7 +153,11 @@ export default function Layout({ children }: LayoutProps) {
                 className="flex items-center gap-2.5 px-1 hover:opacity-80 transition-opacity cursor-pointer group"
               >
                 {avatarSrc ? (
-                  <img src={avatarSrc} alt={displayLabel} className="w-6 h-6 rounded-full flex-shrink-0 object-cover ring-1 ring-transparent group-hover:ring-primary transition-all" />
+                  <img
+                    src={avatarSrc}
+                    alt={displayLabel}
+                    className="w-6 h-6 rounded-full flex-shrink-0 object-cover ring-1 ring-transparent group-hover:ring-primary transition-all"
+                  />
                 ) : (
                   <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
                     <User className="w-3 h-3 text-primary" />
@@ -132,7 +168,7 @@ export default function Layout({ children }: LayoutProps) {
                 </span>
               </Link>
               <button
-                onClick={() => signOut({ redirectUrl: basePath || "/" })}
+                onClick={handleSignOut}
                 className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-muted-foreground border border-sidebar-border hover:border-primary/60 hover:text-primary transition-colors"
               >
                 <LogOut className="w-3.5 h-3.5 flex-shrink-0" />
@@ -142,7 +178,7 @@ export default function Layout({ children }: LayoutProps) {
           ) : (
             <div className="space-y-2">
               <button
-                onClick={() => openSignIn()}
+                onClick={handleSignIn}
                 className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-muted-foreground border border-sidebar-border hover:border-primary/60 hover:text-primary transition-colors"
               >
                 <LogIn className="w-3.5 h-3.5 flex-shrink-0" />
@@ -170,9 +206,6 @@ export default function Layout({ children }: LayoutProps) {
               target="_blank"
               rel="noopener noreferrer"
               className="font-semibold text-primary hover:underline"
-              onError={(e) => {
-                (e.currentTarget as HTMLAnchorElement).href = "https://youtube.com/@whitewase";
-              }}
             >
               WhiteWase
             </a>
@@ -181,13 +214,19 @@ export default function Layout({ children }: LayoutProps) {
       </aside>
 
       {/* ── Mobile Top Bar ───────────────────────────────────────────────────── */}
-      <header className={cn(
-        "md:hidden flex items-center justify-between px-4 bg-sidebar border-b border-sidebar-border flex-shrink-0",
-        showInstallBanner ? "mt-14 h-14" : "h-14"
-      )}>
+      <header
+        className={cn(
+          "md:hidden flex items-center justify-between px-4 bg-sidebar border-b border-sidebar-border flex-shrink-0",
+          showInstallBanner ? "mt-14 h-14" : "h-14",
+        )}
+      >
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 flex items-center justify-center overflow-hidden">
-            <img src="/logo.png" alt="WhiteWase" className="w-7 h-7 rounded-md object-cover" />
+            <img
+              src="/logo.png"
+              alt="WhiteWase"
+              className="w-7 h-7 rounded-md object-cover"
+            />
           </div>
           <span className="font-bold text-sm tracking-tight">WhiteWase</span>
         </div>
@@ -195,7 +234,11 @@ export default function Layout({ children }: LayoutProps) {
           <div className="flex items-center gap-3">
             <Link href="/profile" className="flex items-center">
               {avatarSrc ? (
-                <img src={avatarSrc} alt={displayLabel} className="w-7 h-7 rounded-full object-cover ring-1 ring-transparent hover:ring-primary transition-all" />
+                <img
+                  src={avatarSrc}
+                  alt={displayLabel}
+                  className="w-7 h-7 rounded-full object-cover ring-1 ring-transparent hover:ring-primary transition-all"
+                />
               ) : (
                 <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center">
                   <User className="w-4 h-4 text-primary" />
@@ -203,7 +246,7 @@ export default function Layout({ children }: LayoutProps) {
               )}
             </Link>
             <button
-              onClick={() => signOut({ redirectUrl: basePath || "/" })}
+              onClick={handleSignOut}
               className="flex items-center justify-center w-7 h-7 text-muted-foreground hover:text-primary transition-colors"
               aria-label={t.nav.signOut}
             >
@@ -211,7 +254,10 @@ export default function Layout({ children }: LayoutProps) {
             </button>
           </div>
         ) : (
-          <button onClick={() => openSignIn()} className="text-xs text-primary font-medium flex items-center gap-1">
+          <button
+            onClick={handleSignIn}
+            className="text-xs text-primary font-medium flex items-center gap-1"
+          >
             <LogIn className="w-3.5 h-3.5" />
             {t.nav.signIn}
           </button>
@@ -219,10 +265,7 @@ export default function Layout({ children }: LayoutProps) {
       </header>
 
       {/* ── Main Content ─────────────────────────────────────────────────────── */}
-      <main className={cn(
-        "flex-1 overflow-auto",
-        "pb-20 md:pb-0"
-      )}>
+      <main className={cn("flex-1 overflow-auto", "pb-20 md:pb-0")}>
         {children}
       </main>
 
@@ -236,7 +279,7 @@ export default function Layout({ children }: LayoutProps) {
               href={href}
               className={cn(
                 "flex-1 flex flex-col items-center justify-center gap-1 text-[10px] font-medium transition-colors",
-                isActive ? "text-primary" : "text-muted-foreground"
+                isActive ? "text-primary" : "text-muted-foreground",
               )}
             >
               <Icon className={cn("w-5 h-5", isActive && "text-primary")} />
@@ -244,7 +287,6 @@ export default function Layout({ children }: LayoutProps) {
             </Link>
           );
         })}
-        {/* Shield icon for security badge */}
         <div className="flex-1 flex flex-col items-center justify-center gap-1 text-[10px] text-muted-foreground/50">
           <Shield className="w-5 h-5" />
           <span>Safe</span>

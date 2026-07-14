@@ -20,13 +20,16 @@ export default function DebugAuthPage() {
       const token = await getToken();
       lines.push("");
       lines.push("=== Token ===");
-      lines.push(token ? `✅ موجود: ${token.slice(0, 60)}...` : "❌ NULL — لم يتم الحصول على token");
+      lines.push(
+        token
+          ? `✅ موجود: ${token.slice(0, 60)}...`
+          : "❌ NULL — لم يتم الحصول على token",
+      );
 
       lines.push("");
-      lines.push("=== اختبار الـ API ===");
-
+      lines.push("=== اختبار API (profiles/me) ===");
       try {
-        const resp = await fetch("/api/debug-auth", {
+        const resp = await fetch("/api/profiles/me", {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         const data = await resp.json();
@@ -44,16 +47,18 @@ export default function DebugAuthPage() {
 
   return (
     <div style={{ padding: 20, fontFamily: "monospace", direction: "ltr" }}>
-      <h2 style={{ marginBottom: 16 }}>🔍 Auth Debug</h2>
-      <pre style={{
-        background: "#111",
-        color: "#0f0",
-        padding: 16,
-        borderRadius: 8,
-        fontSize: 12,
-        whiteSpace: "pre-wrap",
-        wordBreak: "break-all",
-      }}>
+      <h2 style={{ marginBottom: 16 }}>Auth Debug</h2>
+      <pre
+        style={{
+          background: "#111",
+          color: "#0f0",
+          padding: 16,
+          borderRadius: 8,
+          fontSize: 12,
+          whiteSpace: "pre-wrap",
+          wordBreak: "break-all",
+        }}
+      >
         {result}
       </pre>
       <button
