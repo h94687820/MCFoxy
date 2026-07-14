@@ -16,6 +16,7 @@ import UserProfilePage from "@/pages/user-profile";
 import SignInPage from "@/pages/sign-in";
 import SignUpPage from "@/pages/sign-up";
 import NotFound from "@/pages/not-found";
+import DebugAuthPage from "@/pages/debug-auth";
 import { useTheme } from "@/hooks/use-theme";
 import { LanguageProvider } from "@/contexts/language-context";
 
@@ -120,6 +121,7 @@ function AppContent() {
         <Route path="/profile" component={ProfilePage} />
         <Route path="/u/:username" component={UserProfilePage} />
         <Route path="/files/:id" component={FileDetailPage} />
+        <Route path="/debug" component={DebugAuthPage} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
