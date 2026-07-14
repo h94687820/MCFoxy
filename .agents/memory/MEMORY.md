@@ -4,3 +4,4 @@
 - [Secrets can go empty in shells](cloudflare-token-shell-access.md) — any secret can show empty in ShellExec despite existing; re-request via requestSecrets before assuming a block
 - [Missing avatar upload route symptom](avatar-upload-route.md) — a "shows in one place, not elsewhere" bug can mean the persist endpoint 404s while local state still renders
 - [Clerk proxy breaks with dev keys](clerk-proxy-dev-key.md) — pk_test instances get "Invalid host" through any custom Clerk proxy; only pk_live+verified domain supports it
+- [Clerk 401 fix procedure](clerk-401-fix.md) — مزامنة المفاتيح + رفع secrets لـ Cloudflare + sign-out/in: راجع MCFix.md
