@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@clerk/react";
 import { getListFilesQueryKey, getGetFileStatsQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -39,6 +40,7 @@ const EDITION_HINT: Record<Edition, string> = {
 
 export default function UploadPage() {
   const queryClient = useQueryClient();
+  const { getToken } = useAuth();
   const { t } = useLanguage();
   const [edition, setEdition] = useState<Edition>("java");
   const [fileType, setFileType] = useState<FileType>("mod");
@@ -153,8 +155,13 @@ export default function UploadPage() {
       }
       selectedImages.forEach((img) => formData.append("images", img));
 
+      const token = await getToken();
       const base = import.meta.env.BASE_URL.replace(/\/$/, "");
-      const response = await fetch(`${base}/api/files/upload`, { method: "POST", body: formData });
+      const response = await fetch(`${base}/api/files/upload`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));

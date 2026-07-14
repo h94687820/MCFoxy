@@ -9,7 +9,7 @@ import {
   getListFilesQueryKey,
   getGetFileStatsQueryKey,
 } from "@workspace/api-client-react";
-import { useUser } from "@clerk/react";
+import { useUser, useAuth } from "@clerk/react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -72,6 +72,7 @@ function ImageGallery({ images, fileId, isOwner, onImagesUpdated }: ImageGallery
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const { getToken } = useAuth();
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 
   async function handleAddImages(e: React.ChangeEvent<HTMLInputElement>) {
@@ -79,10 +80,12 @@ function ImageGallery({ images, fileId, isOwner, onImagesUpdated }: ImageGallery
     if (!files.length) return;
     setUploading(true);
     try {
+      const token = await getToken();
       const formData = new FormData();
       files.forEach((f) => formData.append("images", f));
       const res = await fetch(`${base}/api/files/${fileId}`, {
         method: "PATCH",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: formData,
       });
       if (res.ok) onImagesUpdated();
@@ -185,6 +188,7 @@ interface CoverImageProps {
 function CoverImageSection({ coverImage, fileId, isOwner, onUpdated }: CoverImageProps) {
   const [uploading, setUploading] = useState(false);
   const coverInputRef = useRef<HTMLInputElement>(null);
+  const { getToken } = useAuth();
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 
   async function handleSetCover(e: React.ChangeEvent<HTMLInputElement>) {
@@ -192,10 +196,12 @@ function CoverImageSection({ coverImage, fileId, isOwner, onUpdated }: CoverImag
     if (!file) return;
     setUploading(true);
     try {
+      const token = await getToken();
       const formData = new FormData();
       formData.append("coverImage", file);
       const res = await fetch(`${base}/api/files/${fileId}`, {
         method: "PATCH",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: formData,
       });
       if (res.ok) onUpdated();
@@ -262,15 +268,18 @@ function DescriptionEditor({ fileId, initialDescription, isOwner, onUpdated }: D
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(initialDescription ?? "");
   const [saving, setSaving] = useState(false);
+  const { getToken } = useAuth();
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 
   async function handleSave() {
     setSaving(true);
     try {
+      const token = await getToken();
       const formData = new FormData();
       formData.append("description", value);
       const res = await fetch(`${base}/api/files/${fileId}`, {
         method: "PATCH",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: formData,
       });
       if (res.ok) {

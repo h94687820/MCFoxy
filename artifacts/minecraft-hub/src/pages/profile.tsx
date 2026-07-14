@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { useUser } from "@clerk/react";
+import { useUser, useAuth } from "@clerk/react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -25,6 +25,7 @@ function useDebounce<T>(value: T, delay: number): T {
 
 export default function ProfilePage() {
   const { user, isLoaded } = useUser();
+  const { getToken } = useAuth();
   const [, setLocation] = useLocation();
   const qc = useQueryClient();
   const { t } = useLanguage();
@@ -71,10 +72,12 @@ export default function ProfilePage() {
     setAvatarError("");
     setAvatarUploading(true);
     try {
+      const token = await getToken();
       const fd = new FormData();
       fd.append("avatar", file);
       const resp = await fetch(`${import.meta.env.BASE_URL}api/profiles/avatar`, {
         method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: fd,
       });
       const data = await resp.json() as { url?: string; error?: string };
