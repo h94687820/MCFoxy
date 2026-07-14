@@ -1,8 +1,7 @@
 export type Bindings = {
   ASSETS: Fetcher;
-  SUPABASE_URL: string;
-  SUPABASE_SERVICE_ROLE_KEY: string;
-  DATABASE_URL: string;
+  BAAS_BASE_URL: string;
+  BAAS_API_KEY: string;
   CLERK_SECRET_KEY: string;
   CLERK_PUBLISHABLE_KEY: string;
   DEEPAI_API_KEY?: string;

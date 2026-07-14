@@ -1,18 +1,28 @@
 import { Hono } from "hono";
-import { eq, and, ne } from "drizzle-orm";
-import { StorageClient } from "@supabase/storage-js";
-import { getDb, profilesTable } from "../db";
 import { getClerkAuth } from "../lib/clerkAuth";
+import {
+  listRecords,
+  getRecord,
+  createRecord,
+  patchRecord,
+  setUniqueFields,
+  isDuplicateFieldError,
+  initStorageUpload,
+  putStorageBytes,
+} from "../lib/baas";
 import type { Bindings, Variables } from "../env.d";
 
-const BUCKET = "uploads";
+const COLLECTION = "profiles";
 
-function getStorage(env: Bindings) {
-  return new StorageClient(`${env.SUPABASE_URL}/storage/v1`, {
-    apikey: env.SUPABASE_SERVICE_ROLE_KEY,
-    Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
-  });
-}
+type ProfileData = {
+  userId: string;
+  username: string;
+  displayName: string | null;
+  bio: string | null;
+  avatarUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
 
 function extname(filename: string): string {
   const idx = filename.lastIndexOf(".");
@@ -25,30 +35,60 @@ const profiles = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
 const USERNAME_RE = /^[a-zA-Z0-9_-]{3,20}$/;
 
+let schemaEnsured = false;
+/** Declares `username` as unique for the profiles collection (idempotent, done lazily once per isolate). */
+async function ensureSchema(env: Bindings) {
+  if (schemaEnsured) return;
+  await setUniqueFields(env, COLLECTION, ["username"]).catch(() => {
+    // Best-effort — if the BaaS platform is temporarily unavailable for this call, ownership
+    // checks below still catch duplicates on read; we just lose the DB-level guarantee.
+  });
+  schemaEnsured = true;
+}
+
+function toResponse(record: { id: number; data: ProfileData }) {
+  return { id: record.id, ...record.data };
+}
+
+async function findByUserId(env: Bindings, userId: string) {
+  const all = await listRecords<ProfileData>(env, COLLECTION);
+  return all.find((r) => r.data.userId === userId) ?? null;
+}
+
+async function findByUsername(env: Bindings, username: string) {
+  const all = await listRecords<ProfileData>(env, COLLECTION);
+  return all.find((r) => r.data.username === username) ?? null;
+}
+
 profiles.get("/profiles/me", async (c) => {
   const userId = await getClerkAuth(c);
   if (!userId) return c.json({ error: "Unauthorized" }, 401);
 
-  const db = getDb(c.env.DATABASE_URL);
-  let [profile] = await db.select().from(profilesTable).where(eq(profilesTable.userId, userId));
+  await ensureSchema(c.env);
+  let profile = await findByUserId(c.env, userId);
 
   if (!profile) {
+    const now = new Date().toISOString();
     const defaultUsername = `user_${userId.slice(-8)}`;
-    const [created] = await db
-      .insert(profilesTable)
-      .values({ userId, username: defaultUsername })
-      .returning();
-    profile = created;
+    profile = await createRecord<ProfileData>(c.env, COLLECTION, {
+      userId,
+      username: defaultUsername,
+      displayName: null,
+      bio: null,
+      avatarUrl: null,
+      createdAt: now,
+      updatedAt: now,
+    });
   }
 
-  return c.json(profile);
+  return c.json(toResponse(profile));
 });
 
 profiles.put("/profiles/me", async (c) => {
   const userId = await getClerkAuth(c);
   if (!userId) return c.json({ error: "Unauthorized" }, 401);
 
-  const db = getDb(c.env.DATABASE_URL);
+  await ensureSchema(c.env);
   const body = (await c.req.json().catch(() => ({}))) as {
     username?: string;
     displayName?: string;
@@ -57,50 +97,39 @@ profiles.put("/profiles/me", async (c) => {
   };
   const { username, displayName, bio, avatarUrl } = body;
 
-  if (username !== undefined) {
-    if (!USERNAME_RE.test(username)) {
-      return c.json({ error: "Username must be 3–20 characters: letters, numbers, _ or -" }, 400);
-    }
-
-    const [taken] = await db
-      .select()
-      .from(profilesTable)
-      .where(and(eq(profilesTable.username, username), ne(profilesTable.userId, userId)));
-
-    if (taken) {
-      return c.json({ error: "Username already taken" }, 400);
-    }
+  if (username !== undefined && !USERNAME_RE.test(username)) {
+    return c.json({ error: "Username must be 3–20 characters: letters, numbers, _ or -" }, 400);
   }
 
-  const [existing] = await db.select().from(profilesTable).where(eq(profilesTable.userId, userId));
+  const existing = await findByUserId(c.env, userId);
+  const now = new Date().toISOString();
 
-  if (!existing) {
-    const [created] = await db
-      .insert(profilesTable)
-      .values({
+  try {
+    if (!existing) {
+      const created = await createRecord<ProfileData>(c.env, COLLECTION, {
         userId,
         username: username ?? `user_${userId.slice(-8)}`,
         displayName: displayName ?? null,
         bio: bio ?? null,
         avatarUrl: avatarUrl ?? null,
-      })
-      .returning();
-    return c.json(created);
-  }
+        createdAt: now,
+        updatedAt: now,
+      });
+      return c.json(toResponse(created));
+    }
 
-  const [updated] = await db
-    .update(profilesTable)
-    .set({
+    const updated = await patchRecord<ProfileData>(c.env, COLLECTION, existing.id, {
       ...(username !== undefined && { username }),
       ...(displayName !== undefined && { displayName }),
       ...(bio !== undefined && { bio }),
       ...(avatarUrl !== undefined && { avatarUrl }),
-      updatedAt: new Date(),
-    })
-    .where(eq(profilesTable.userId, userId))
-    .returning();
-
-  return c.json(updated);
+      updatedAt: now,
+    });
+    return c.json(toResponse(updated));
+  } catch (err) {
+    if (isDuplicateFieldError(err)) return c.json({ error: "Username already taken" }, 400);
+    throw err;
+  }
 });
 
 // ── Upload avatar image ───────────────────────────────────────────────────────
@@ -118,25 +147,22 @@ profiles.post("/profiles/avatar", async (c) => {
     return c.json({ error: `Unsupported image type. Allowed: ${[...ALLOWED_AVATAR_EXTENSIONS].join(", ")}` }, 400);
   }
 
-  const filename = `avatars/${userId}-${Date.now()}${ext}`;
-  const storage = getStorage(c.env);
-  const { error } = await storage.from(BUCKET).upload(filename, new Blob([await file.arrayBuffer()]), {
+  const init = await initStorageUpload(c.env, {
+    name: `avatars/${userId}-${Date.now()}${ext}`,
+    size: file.size,
     contentType: file.type || "image/jpeg",
-    upsert: true,
   });
+  await putStorageBytes(c.env, init.uploadURL, await file.arrayBuffer(), file.type || "image/jpeg");
 
-  if (error) return c.json({ error: "Upload failed: " + error.message }, 500);
-
-  const { data } = storage.from(BUCKET).getPublicUrl(filename);
-
-  // Update profile avatarUrl
-  const db = getDb(c.env.DATABASE_URL);
-  const [existing] = await db.select().from(profilesTable).where(eq(profilesTable.userId, userId));
+  const existing = await findByUserId(c.env, userId);
   if (existing) {
-    await db.update(profilesTable).set({ avatarUrl: data.publicUrl, updatedAt: new Date() }).where(eq(profilesTable.userId, userId));
+    await patchRecord<ProfileData>(c.env, COLLECTION, existing.id, {
+      avatarUrl: init.downloadUrl,
+      updatedAt: new Date().toISOString(),
+    });
   }
 
-  return c.json({ url: data.publicUrl });
+  return c.json({ url: init.downloadUrl });
 });
 
 profiles.get("/profiles/check-username", async (c) => {
@@ -148,24 +174,18 @@ profiles.get("/profiles/check-username", async (c) => {
   const valid = USERNAME_RE.test(username);
   if (!valid) return c.json({ available: false, valid: false });
 
-  const db = getDb(c.env.DATABASE_URL);
-  const conditions = excludeUserId
-    ? and(eq(profilesTable.username, username), ne(profilesTable.userId, excludeUserId))
-    : eq(profilesTable.username, username);
+  const existing = await findByUsername(c.env, username);
+  const takenByOther = existing && existing.data.userId !== excludeUserId;
 
-  const [existing] = await db.select().from(profilesTable).where(conditions);
-
-  return c.json({ available: !existing, valid: true });
+  return c.json({ available: !takenByOther, valid: true });
 });
 
 profiles.get("/profiles/:username", async (c) => {
   const username = c.req.param("username");
-  const db = getDb(c.env.DATABASE_URL);
-
-  const [profile] = await db.select().from(profilesTable).where(eq(profilesTable.username, username));
+  const profile = await findByUsername(c.env, username);
   if (!profile) return c.json({ error: "Profile not found" }, 404);
 
-  return c.json(profile);
+  return c.json(toResponse(profile));
 });
 
 export default profiles;

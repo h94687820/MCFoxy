@@ -1,23 +1,47 @@
 import { Hono } from "hono";
-import { eq, and, or, ilike } from "drizzle-orm";
-import { StorageClient } from "@supabase/storage-js";
-import { getDb, filesTable } from "../db";
-import { requireAuth } from "../lib/clerkAuth";
 import {
-  ListFilesQueryParams,
-  GetFileParams,
-  DeleteFileParams,
-} from "@workspace/api-zod";
+  listRecords,
+  getRecord,
+  createRecord,
+  patchRecord,
+  deleteRecord,
+  setUniqueFields,
+  isDuplicateFieldError,
+  initStorageUpload,
+  putStorageBytes,
+  deleteStorageFile,
+  fetchStorageBytes,
+} from "../lib/baas";
+import { requireAuth } from "../lib/clerkAuth";
+import { ListFilesQueryParams, GetFileParams, DeleteFileParams } from "@workspace/api-zod";
 import type { Bindings, Variables } from "../env.d";
 
-const BUCKET = "uploads";
+const COLLECTION = "files";
 
-function getStorage(env: Bindings) {
-  return new StorageClient(`${env.SUPABASE_URL}/storage/v1`, {
-    apikey: env.SUPABASE_SERVICE_ROLE_KEY,
-    Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
-  });
-}
+type FileData = {
+  customId: string | null;
+  name: string;
+  originalName: string;
+  title: string | null;
+  edition: string;
+  type: string;
+  size: number;
+  mimeType: string | null;
+  filePath: string; // BaaS storage download URL for the main file
+  mainStorageFileId: number; // BaaS storage fileId, needed to delete the blob later
+  uploadedAt: string;
+  scanStatus: string;
+  scanDetails: string | null;
+  scanEngine: string | null;
+  virusTotalLink: string | null;
+  detectionRatio: string | null;
+  description: string | null;
+  coverImage: string | null; // download URL
+  coverImageFileId: number | null;
+  images: string[]; // download URLs
+  imageFileIds: number[];
+  uploadedBy: string | null;
+};
 
 const files = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -39,8 +63,21 @@ function uniqueFilename(filename: string): string {
   return `${unique}${extname(filename)}`;
 }
 
-function fileToResponse(f: typeof filesTable.$inferSelect) {
-  return { ...f, uploadedAt: f.uploadedAt.toISOString() };
+function fileToResponse(record: { id: number; data: FileData }) {
+  const { mainStorageFileId, coverImageFileId, imageFileIds, ...rest } = record.data;
+  return { id: record.id, ...rest };
+}
+
+let schemaEnsured = false;
+async function ensureSchema(env: Bindings) {
+  if (schemaEnsured) return;
+  await setUniqueFields(env, COLLECTION, ["customId"]).catch(() => {});
+  schemaEnsured = true;
+}
+
+async function findByCustomId(env: Bindings, customId: string) {
+  const all = await listRecords<FileData>(env, COLLECTION);
+  return all.find((r) => r.data.customId === customId) ?? null;
 }
 
 // ── List files ───────────────────────────────────────────────────────────────
@@ -56,49 +93,46 @@ files.get("/files", async (c) => {
     search?: string;
   };
 
-  const db = getDb(c.env.DATABASE_URL);
-  const conditions = [];
-  if (edition) conditions.push(eq(filesTable.edition, edition));
-  if (type) conditions.push(eq(filesTable.type, type));
-  if (scanStatus) conditions.push(eq(filesTable.scanStatus, scanStatus));
+  let results = await listRecords<FileData>(c.env, COLLECTION);
+
+  if (edition) results = results.filter((r) => r.data.edition === edition);
+  if (type) results = results.filter((r) => r.data.type === type);
+  if (scanStatus) results = results.filter((r) => r.data.scanStatus === scanStatus);
   if (search && search.trim()) {
-    const term = `%${search.trim()}%`;
-    conditions.push(or(ilike(filesTable.originalName, term), ilike(filesTable.customId, term))!);
+    const term = search.trim().toLowerCase();
+    results = results.filter(
+      (r) => r.data.originalName.toLowerCase().includes(term) || (r.data.customId ?? "").toLowerCase().includes(term),
+    );
   }
 
-  const results = conditions.length
-    ? await db.select().from(filesTable).where(and(...conditions)).orderBy(filesTable.uploadedAt)
-    : await db.select().from(filesTable).orderBy(filesTable.uploadedAt);
+  results.sort((a, b) => new Date(a.data.uploadedAt).getTime() - new Date(b.data.uploadedAt).getTime());
 
   return c.json(results.map(fileToResponse));
 });
 
 // ── Stats — MUST be before /:id ──────────────────────────────────────────────
 files.get("/files/stats", async (c) => {
-  const db = getDb(c.env.DATABASE_URL);
-  const rows = await db
-    .select({ edition: filesTable.edition, type: filesTable.type, scanStatus: filesTable.scanStatus, size: filesTable.size })
-    .from(filesTable);
+  const rows = await listRecords<FileData>(c.env, COLLECTION);
 
   return c.json({
     totalFiles: rows.length,
-    totalMods: rows.filter((r) => r.type === "mod").length,
-    totalMaps: rows.filter((r) => r.type === "map").length,
-    javaMods: rows.filter((r) => r.edition === "java" && r.type === "mod").length,
-    javaMaps: rows.filter((r) => r.edition === "java" && r.type === "map").length,
-    bedrockMods: rows.filter((r) => r.edition === "bedrock" && r.type === "mod").length,
-    bedrockMaps: rows.filter((r) => r.edition === "bedrock" && r.type === "map").length,
-    cleanFiles: rows.filter((r) => r.scanStatus === "clean").length,
-    maliciousFiles: rows.filter((r) => r.scanStatus === "malicious").length,
-    pendingFiles: rows.filter((r) => r.scanStatus === "pending").length,
-    totalSizeBytes: rows.reduce((acc, r) => acc + (r.size ?? 0), 0),
+    totalMods: rows.filter((r) => r.data.type === "mod").length,
+    totalMaps: rows.filter((r) => r.data.type === "map").length,
+    javaMods: rows.filter((r) => r.data.edition === "java" && r.data.type === "mod").length,
+    javaMaps: rows.filter((r) => r.data.edition === "java" && r.data.type === "map").length,
+    bedrockMods: rows.filter((r) => r.data.edition === "bedrock" && r.data.type === "mod").length,
+    bedrockMaps: rows.filter((r) => r.data.edition === "bedrock" && r.data.type === "map").length,
+    cleanFiles: rows.filter((r) => r.data.scanStatus === "clean").length,
+    maliciousFiles: rows.filter((r) => r.data.scanStatus === "malicious").length,
+    pendingFiles: rows.filter((r) => r.data.scanStatus === "pending").length,
+    totalSizeBytes: rows.reduce((acc, r) => acc + (r.data.size ?? 0), 0),
   });
 });
 
 // ── Upload (requires auth) ────────────────────────────────────────────────────
 files.post("/files/upload", requireAuth, async (c) => {
   const userId = c.get("userId");
-  const db = getDb(c.env.DATABASE_URL);
+  await ensureSchema(c.env);
   const body = await c.req.parseBody({ all: true });
 
   const mainFile = body["file"] as File | undefined;
@@ -125,17 +159,14 @@ files.post("/files/upload", requireAuth, async (c) => {
 
   const CUSTOM_ID_REGEX = /^[a-z0-9-]{3,50}$/;
   if (!customId || !CUSTOM_ID_REGEX.test(customId)) {
-    return c.json(
-      { error: "customId must be 3–50 chars: lowercase letters, numbers, and hyphens only" },
-      400,
-    );
+    return c.json({ error: "customId must be 3–50 chars: lowercase letters, numbers, and hyphens only" }, 400);
   }
 
   if (!title || !title.trim()) {
     return c.json({ error: "title is required" }, 400);
   }
 
-  const [existing] = await db.select({ id: filesTable.id }).from(filesTable).where(eq(filesTable.customId, customId));
+  const existing = await findByCustomId(c.env, customId);
   if (existing) return c.json({ error: "customId is already taken, please choose another" }, 409);
 
   const ext = extname(mainFile.name);
@@ -150,9 +181,6 @@ files.post("/files/upload", requireAuth, async (c) => {
   }
 
   // ── Image moderation (DeepAI NSFW check) ─────────────────────────────────
-  // `images` stores bare filenames (not full R2 keys) to match the frontend's
-  // `${base}/api/uploads/images/${imgName}` URL construction; the "images/"
-  // prefix is applied when reading/writing R2.
   const deepAiKey = c.env.DEEPAI_API_KEY;
 
   async function checkNsfw(img: File): Promise<boolean> {
@@ -175,79 +203,89 @@ files.post("/files/upload", requireAuth, async (c) => {
     return false;
   }
 
-  const storage = getStorage(c.env);
-
-  let coverImageName: string | null = null;
+  let coverImageUrl: string | null = null;
+  let coverImageFileId: number | null = null;
   if (coverImageFile && coverImageFile instanceof File && ALLOWED_IMAGE_EXTENSIONS.has(extname(coverImageFile.name))) {
     const coverIsNsfw = await checkNsfw(coverImageFile);
     if (!coverIsNsfw) {
-      const filename = uniqueFilename(coverImageFile.name);
-      await storage.from(BUCKET).upload(`images/${filename}`, new Blob([await coverImageFile.arrayBuffer()]), {
+      const init = await initStorageUpload(c.env, {
+        name: `images/${uniqueFilename(coverImageFile.name)}`,
+        size: coverImageFile.size,
         contentType: coverImageFile.type || "application/octet-stream",
       });
-      coverImageName = filename;
+      await putStorageBytes(c.env, init.uploadURL, await coverImageFile.arrayBuffer(), coverImageFile.type || "application/octet-stream");
+      coverImageUrl = init.downloadUrl;
+      coverImageFileId = init.fileId;
     }
   }
 
-  const cleanImageNames: string[] = [];
+  const imageUrls: string[] = [];
+  const imageFileIds: number[] = [];
   for (const img of imageFiles) {
     if (!ALLOWED_IMAGE_EXTENSIONS.has(extname(img.name))) continue;
     const isNsfw = await checkNsfw(img);
     if (!isNsfw) {
-      const filename = uniqueFilename(img.name);
-      await storage.from(BUCKET).upload(`images/${filename}`, new Blob([await img.arrayBuffer()]), {
+      const init = await initStorageUpload(c.env, {
+        name: `images/${uniqueFilename(img.name)}`,
+        size: img.size,
         contentType: img.type || "application/octet-stream",
       });
-      cleanImageNames.push(filename);
+      await putStorageBytes(c.env, init.uploadURL, await img.arrayBuffer(), img.type || "application/octet-stream");
+      imageUrls.push(init.downloadUrl);
+      imageFileIds.push(init.fileId);
     }
   }
 
-  const mainKey = `files/${uniqueFilename(mainFile.name)}`;
-  const mainStorage = getStorage(c.env);
-  await mainStorage.from(BUCKET).upload(mainKey, new Blob([await mainFile.arrayBuffer()]), {
+  const mainInit = await initStorageUpload(c.env, {
+    name: `files/${uniqueFilename(mainFile.name)}`,
+    size: mainFile.size,
     contentType: mainFile.type || "application/octet-stream",
   });
+  await putStorageBytes(c.env, mainInit.uploadURL, await mainFile.arrayBuffer(), mainFile.type || "application/octet-stream");
 
-  const [inserted] = await db
-    .insert(filesTable)
-    .values({
-      customId,
-      name: mainKey,
-      originalName: mainFile.name,
-      title: title.trim(),
-      edition,
-      type,
-      size: mainFile.size,
-      mimeType: mainFile.type,
-      filePath: mainKey,
-      scanStatus: "pending",
-      description: description ?? null,
-      coverImage: coverImageName,
-      images: cleanImageNames,
-      uploadedBy: userId,
-    })
-    .returning();
+  const now = new Date().toISOString();
+  const inserted = await createRecord<FileData>(c.env, COLLECTION, {
+    customId,
+    name: mainInit.downloadUrl,
+    originalName: mainFile.name,
+    title: title.trim(),
+    edition,
+    type,
+    size: mainFile.size,
+    mimeType: mainFile.type || null,
+    filePath: mainInit.downloadUrl,
+    mainStorageFileId: mainInit.fileId,
+    uploadedAt: now,
+    scanStatus: "pending",
+    scanDetails: null,
+    scanEngine: null,
+    virusTotalLink: null,
+    detectionRatio: null,
+    description: description ?? null,
+    coverImage: coverImageUrl,
+    coverImageFileId,
+    images: imageUrls,
+    imageFileIds,
+    uploadedBy: userId,
+  });
 
   const apiKey = c.env.VIRUSTOTAL_API_KEY;
   if (apiKey) {
     c.executionCtx.waitUntil(
-      performScan(db, c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_ROLE_KEY, inserted.id, mainKey, apiKey).catch(async (err) => {
+      performScan(c.env, inserted.id, mainInit.downloadUrl, apiKey).catch(async (err) => {
         const msg = String(err);
         const isRateLimit = msg.includes("rate") || msg.includes("429");
-        await db
-          .update(filesTable)
-          .set({
-            scanStatus: isRateLimit ? "pending" : "error",
-            scanDetails: isRateLimit ? null : msg,
-          })
-          .where(eq(filesTable.id, inserted.id));
+        await patchRecord<FileData>(c.env, COLLECTION, inserted.id, {
+          scanStatus: isRateLimit ? "pending" : "error",
+          scanDetails: isRateLimit ? null : msg,
+        }).catch(() => {});
       }),
     );
   } else {
-    await db
-      .update(filesTable)
-      .set({ scanStatus: "error", scanDetails: "VirusTotal API key not configured — file unverified" })
-      .where(eq(filesTable.id, inserted.id));
+    await patchRecord<FileData>(c.env, COLLECTION, inserted.id, {
+      scanStatus: "error",
+      scanDetails: "VirusTotal API key not configured — file unverified",
+    });
   }
 
   return c.json(fileToResponse(inserted), 201);
@@ -259,10 +297,9 @@ files.patch("/files/:id", requireAuth, async (c) => {
   const id = Number(c.req.param("id"));
   if (!Number.isFinite(id)) return c.json({ error: "Invalid id" }, 400);
 
-  const db = getDb(c.env.DATABASE_URL);
-  const [file] = await db.select().from(filesTable).where(eq(filesTable.id, id));
+  const file = await getRecord<FileData>(c.env, COLLECTION, id);
   if (!file) return c.json({ error: "Not found" }, 404);
-  if (file.uploadedBy !== userId) return c.json({ error: "Forbidden — you can only edit your own files" }, 403);
+  if (file.data.uploadedBy !== userId) return c.json({ error: "Forbidden — you can only edit your own files" }, 403);
 
   const body = await c.req.parseBody({ all: true });
   const description = body["description"] as string | undefined;
@@ -273,38 +310,43 @@ files.patch("/files/:id", requireAuth, async (c) => {
   );
   const newCoverImage = body["coverImage"] as File | undefined;
 
-  const newImageNames: string[] = [];
-  const patchStorage = getStorage(c.env);
+  const newImageUrls: string[] = [];
+  const newImageFileIds: number[] = [];
   for (const img of newImages) {
-    const filename = uniqueFilename(img.name);
-    await patchStorage.from(BUCKET).upload(`images/${filename}`, new Blob([await img.arrayBuffer()]), {
+    const init = await initStorageUpload(c.env, {
+      name: `images/${uniqueFilename(img.name)}`,
+      size: img.size,
       contentType: img.type || "application/octet-stream",
     });
-    newImageNames.push(filename);
+    await putStorageBytes(c.env, init.uploadURL, await img.arrayBuffer(), img.type || "application/octet-stream");
+    newImageUrls.push(init.downloadUrl);
+    newImageFileIds.push(init.fileId);
   }
-  const existingImages = file.images ?? [];
 
-  let newCoverImageName: string | null = null;
+  let newCoverImageUrl: string | null = null;
+  let newCoverImageFileId: number | null = null;
   if (newCoverImage && newCoverImage instanceof File) {
-    newCoverImageName = uniqueFilename(newCoverImage.name);
-    await patchStorage.from(BUCKET).upload(`images/${newCoverImageName}`, new Blob([await newCoverImage.arrayBuffer()]), {
+    const init = await initStorageUpload(c.env, {
+      name: `images/${uniqueFilename(newCoverImage.name)}`,
+      size: newCoverImage.size,
       contentType: newCoverImage.type || "application/octet-stream",
     });
-    if (file.coverImage) {
-      await patchStorage.from(BUCKET).remove([`images/${file.coverImage}`]);
+    await putStorageBytes(c.env, init.uploadURL, await newCoverImage.arrayBuffer(), newCoverImage.type || "application/octet-stream");
+    newCoverImageUrl = init.downloadUrl;
+    newCoverImageFileId = init.fileId;
+    if (file.data.coverImageFileId) {
+      await deleteStorageFile(c.env, file.data.coverImageFileId).catch(() => {});
     }
   }
 
-  const [updated] = await db
-    .update(filesTable)
-    .set({
-      title: title !== undefined && title.trim() ? title.trim() : file.title,
-      coverImage: newCoverImageName ?? file.coverImage,
-      description: description !== undefined ? description : file.description,
-      images: [...existingImages, ...newImageNames],
-    })
-    .where(eq(filesTable.id, id))
-    .returning();
+  const updated = await patchRecord<FileData>(c.env, COLLECTION, id, {
+    title: title !== undefined && title.trim() ? title.trim() : file.data.title,
+    coverImage: newCoverImageUrl ?? file.data.coverImage,
+    coverImageFileId: newCoverImageFileId ?? file.data.coverImageFileId,
+    description: description !== undefined ? description : file.data.description,
+    images: [...file.data.images, ...newImageUrls],
+    imageFileIds: [...file.data.imageFileIds, ...newImageFileIds],
+  });
 
   return c.json(fileToResponse(updated));
 });
@@ -314,24 +356,16 @@ files.get("/files/:id/download", async (c) => {
   const parseResult = GetFileParams.safeParse({ id: Number(c.req.param("id")) });
   if (!parseResult.success) return c.json({ error: "Invalid id" }, 400);
 
-  const db = getDb(c.env.DATABASE_URL);
-  const [file] = await db.select().from(filesTable).where(eq(filesTable.id, parseResult.data.id));
+  const file = await getRecord<FileData>(c.env, COLLECTION, parseResult.data.id);
   if (!file) return c.json({ error: "Not found" }, 404);
 
-  const { data: blob, error: dlError } = await getStorage(c.env).from(BUCKET).download(file.filePath);
-  if (dlError || !blob) return c.json({ error: "File not found in storage" }, 404);
+  const resp = await fetchStorageBytes(file.data.filePath);
+  if (!resp.ok) return c.json({ error: "File not found in storage" }, 404);
 
-  c.header("Content-Disposition", `attachment; filename="${encodeURIComponent(file.originalName)}"`);
+  c.header("Content-Disposition", `attachment; filename="${encodeURIComponent(file.data.originalName)}"`);
   c.header("Content-Type", "application/octet-stream");
-  c.header("Content-Length", String(file.size));
-  return c.body(blob.stream() as unknown as ReadableStream);
-});
-
-// ── Serve images (redirect to Supabase public URL) ───────────────────────────
-// Requires the "uploads" bucket to be set to PUBLIC in Supabase dashboard.
-files.get("/uploads/images/:name", async (c) => {
-  const { data } = getStorage(c.env).from(BUCKET).getPublicUrl(`images/${c.req.param("name")}`);
-  return Response.redirect(data.publicUrl, 302);
+  c.header("Content-Length", String(file.data.size));
+  return c.body(resp.body);
 });
 
 // ── Get file ──────────────────────────────────────────────────────────────────
@@ -339,8 +373,7 @@ files.get("/files/:id", async (c) => {
   const parseResult = GetFileParams.safeParse({ id: Number(c.req.param("id")) });
   if (!parseResult.success) return c.json({ error: "Invalid id" }, 400);
 
-  const db = getDb(c.env.DATABASE_URL);
-  const [file] = await db.select().from(filesTable).where(eq(filesTable.id, parseResult.data.id));
+  const file = await getRecord<FileData>(c.env, COLLECTION, parseResult.data.id);
   if (!file) return c.json({ error: "Not found" }, 404);
 
   return c.json(fileToResponse(file));
@@ -352,38 +385,25 @@ files.delete("/files/:id", requireAuth, async (c) => {
   const parseResult = DeleteFileParams.safeParse({ id: Number(c.req.param("id")) });
   if (!parseResult.success) return c.json({ error: "Invalid id" }, 400);
 
-  const db = getDb(c.env.DATABASE_URL);
-  const [file] = await db.select().from(filesTable).where(eq(filesTable.id, parseResult.data.id));
+  const file = await getRecord<FileData>(c.env, COLLECTION, parseResult.data.id);
   if (!file) return c.json({ error: "Not found" }, 404);
-  if (file.uploadedBy !== userId) return c.json({ error: "Forbidden — you can only delete your own files" }, 403);
+  if (file.data.uploadedBy !== userId) return c.json({ error: "Forbidden — you can only delete your own files" }, 403);
 
-  const delStorage = getStorage(c.env);
-  await delStorage.from(BUCKET).remove([file.filePath]);
-  const imgKeys = (file.images ?? []).map((n) => `images/${n}`);
-  if (imgKeys.length) await delStorage.from(BUCKET).remove(imgKeys);
-  await db.delete(filesTable).where(eq(filesTable.id, parseResult.data.id));
+  await deleteStorageFile(c.env, file.data.mainStorageFileId).catch(() => {});
+  if (file.data.coverImageFileId) await deleteStorageFile(c.env, file.data.coverImageFileId).catch(() => {});
+  for (const fid of file.data.imageFileIds) await deleteStorageFile(c.env, fid).catch(() => {});
+  await deleteRecord(c.env, COLLECTION, parseResult.data.id);
 
   return c.body(null, 204);
 });
 
-async function performScan(
-  db: ReturnType<typeof getDb>,
-  supabaseUrl: string,
-  supabaseKey: string,
-  fileId: number,
-  key: string,
-  apiKey: string,
-) {
-  const storage = new StorageClient(`${supabaseUrl}/storage/v1`, {
-    apikey: supabaseKey,
-    Authorization: `Bearer ${supabaseKey}`,
-  });
-  const { data: blob, error } = await storage.from(BUCKET).download(key);
-  if (error || !blob) throw new Error("File missing from storage");
-  const fileBuffer = await blob.arrayBuffer();
+async function performScan(env: Bindings, fileId: number, fileDownloadUrl: string, apiKey: string) {
+  const blobResp = await fetchStorageBytes(fileDownloadUrl);
+  if (!blobResp.ok) throw new Error("File missing from storage");
+  const fileBuffer = await blobResp.arrayBuffer();
 
   const formData = new FormData();
-  formData.append("file", new Blob([fileBuffer]), key.split("/").pop());
+  formData.append("file", new Blob([fileBuffer]), fileDownloadUrl.split("/").pop());
 
   const uploadResp = await fetch("https://www.virustotal.com/api/v3/files", {
     method: "POST",
@@ -418,27 +438,24 @@ async function performScan(
 
     const stats = attrs.stats ?? {};
     const malicious = (stats.malicious ?? 0) + (stats.suspicious ?? 0);
-    const total =
-      (stats.malicious ?? 0) + (stats.suspicious ?? 0) + (stats.undetected ?? 0) + (stats.harmless ?? 0);
+    const total = (stats.malicious ?? 0) + (stats.suspicious ?? 0) + (stats.undetected ?? 0) + (stats.harmless ?? 0);
 
     if (malicious > 0) {
-      const [file] = await db.select().from(filesTable).where(eq(filesTable.id, fileId));
+      const file = await getRecord<FileData>(env, COLLECTION, fileId);
       if (file) {
-        const keys = [file.filePath, ...(file.images ?? []).map((n) => `images/${n}`)];
-        await storage.from(BUCKET).remove(keys);
-        await db.delete(filesTable).where(eq(filesTable.id, fileId));
+        await deleteStorageFile(env, file.data.mainStorageFileId).catch(() => {});
+        if (file.data.coverImageFileId) await deleteStorageFile(env, file.data.coverImageFileId).catch(() => {});
+        for (const fid of file.data.imageFileIds) await deleteStorageFile(env, fid).catch(() => {});
+        await deleteRecord(env, COLLECTION, fileId);
       }
     } else {
-      await db
-        .update(filesTable)
-        .set({
-          scanStatus: "clean",
-          detectionRatio: `0/${total}`,
-          virusTotalLink: `https://www.virustotal.com/gui/file-analysis/${analysisId}`,
-          scanEngine: "VirusTotal",
-          scanDetails: "No threats detected",
-        })
-        .where(eq(filesTable.id, fileId));
+      await patchRecord<FileData>(env, COLLECTION, fileId, {
+        scanStatus: "clean",
+        detectionRatio: `0/${total}`,
+        virusTotalLink: `https://www.virustotal.com/gui/file-analysis/${analysisId}`,
+        scanEngine: "VirusTotal",
+        scanDetails: "No threats detected",
+      });
     }
     return;
   }
