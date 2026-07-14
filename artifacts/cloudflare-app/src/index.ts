@@ -28,6 +28,32 @@ app.route("/api", files);
 app.route("/api", profiles);
 app.route("/api", settings);
 
+// ── Temporary auth debug endpoint (remove after diagnosis) ───────────────────
+app.get("/api/debug-auth", async (c) => {
+  const authHeader = c.req.header("Authorization") ?? "(none)";
+  const hasSecret = !!c.env.CLERK_SECRET_KEY;
+  const secretPrefix = c.env.CLERK_SECRET_KEY?.slice(0, 12) ?? "(empty)";
+
+  if (!authHeader.startsWith("Bearer ")) {
+    return c.json({ error: "no Bearer token in request", authHeader, hasSecret, secretPrefix });
+  }
+
+  const token = authHeader.slice(7).trim();
+  const { verifyToken } = await import("@clerk/backend");
+
+  try {
+    const payload = await verifyToken(token, { secretKey: c.env.CLERK_SECRET_KEY });
+    return c.json({ ok: true, userId: (payload as any).sub, payload });
+  } catch (err) {
+    return c.json({
+      error: err instanceof Error ? err.message : String(err),
+      tokenPrefix: token.slice(0, 30),
+      hasSecret,
+      secretPrefix,
+    }, 401);
+  }
+});
+
 // Anything else falls through to the static assets binding (the built
 // minecraft-hub SPA), configured with `not_found_handling =
 // "single-page-application"` in wrangler.toml so client-side routes resolve

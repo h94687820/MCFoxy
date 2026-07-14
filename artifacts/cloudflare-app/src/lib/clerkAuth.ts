@@ -36,10 +36,12 @@ export async function getClerkAuth(
     const payload = await verifyToken(token, {
       secretKey: c.env.CLERK_SECRET_KEY,
     });
-    // payload.sub is the Clerk userId (e.g. "user_2abc...")
-    return (payload as { sub?: string }).sub ?? null;
+    const sub = (payload as { sub?: string }).sub ?? null;
+    console.log("Clerk verifyToken success, userId:", sub);
+    return sub;
   } catch (err) {
-    console.error("Clerk verifyToken failed:", err instanceof Error ? err.message : String(err));
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("Clerk verifyToken failed:", msg, "| token prefix:", token.slice(0, 20), "| secretKey set:", !!c.env.CLERK_SECRET_KEY, "| secretKey prefix:", c.env.CLERK_SECRET_KEY?.slice(0, 10));
     return null;
   }
 }
